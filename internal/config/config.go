@@ -30,7 +30,7 @@ func Load() Config {
 		JWTSecret:          os.Getenv("JWT_SECRET"),
 		ServiceJWTSecret:   os.Getenv("OPEN_SERVICE_JWT_SECRET"),
 		ClickHouseURL:      env("CLICKHOUSE_URL", "http://clickhouse:8123"),
-		ClickHouseDatabase: env("CLICKHOUSE_DATABASE", "opa"),
+		ClickHouseDatabase: clickHouseDB(),
 		ClickHouseUser:     os.Getenv("CLICKHOUSE_USER"),
 		ClickHousePassword: os.Getenv("CLICKHOUSE_PASSWORD"),
 		OPAPublicURL:       os.Getenv("OPA_PUBLIC_URL"),
@@ -39,6 +39,17 @@ func Load() Config {
 		AgentStaleAfter:    durationEnv("OPA_HUB_AGENT_STALE_AFTER", 5*time.Minute),
 		CORSOrigin:         os.Getenv("CORS_ORIGIN"),
 	}
+}
+
+// clickHouseDB resolves CLICKHOUSE_DB (preferred) or CLICKHOUSE_DATABASE; default opa.
+func clickHouseDB() string {
+	if v := strings.TrimSpace(os.Getenv("CLICKHOUSE_DB")); v != "" {
+		return v
+	}
+	if v := strings.TrimSpace(os.Getenv("CLICKHOUSE_DATABASE")); v != "" {
+		return v
+	}
+	return "opa"
 }
 
 func env(k, def string) string {

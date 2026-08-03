@@ -38,6 +38,14 @@ func (w *Writer) Ping() error {
 	return w.client.Ping()
 }
 
+// EnsureDatabase creates the configured product database when missing.
+func (w *Writer) EnsureDatabase() error {
+	if w == nil || w.client == nil {
+		return fmt.Errorf("clickhouse writer not configured")
+	}
+	return w.client.EnsureDatabase()
+}
+
 // Config returns the underlying ClickHouse settings.
 func (w *Writer) Config() openclickhouse.Config {
 	if w == nil {
