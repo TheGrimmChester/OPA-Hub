@@ -10,9 +10,15 @@ Edge agents authenticate register, heartbeat, and push with `OPA_HUB_ENROLL_TOKE
 
 ## User auth
 
-- Validate / issue user JWTs with `JWT_SECRET` when auth is required (`OPA_AUTH_REQUIRED`).
-- Hub is the identity home for co-deployed Open Profiling Agent installs (`/api/auth/*`).
+- Issue and validate user JWTs with `JWT_SECRET` (`POST /api/auth/login`, `GET /api/auth/status`).
+- Tokens are standard HS256 JWTs (`Open-Auth-Go`); `iss=opa-hub`.
+- Hub is the identity home for **co-deployed** Open-* installs: share `JWT_SECRET` with ORA/OSA/OPL so they validate hub-issued tokens.
+- Solo OPA installs still use hub login (edge agents do not issue user JWTs).
 - Service-to-service calls use short-lived JWTs minted with `OPEN_SERVICE_JWT_SECRET` (distinct from the user secret when possible).
+
+## ClickHouse
+
+Central telemetry lives in the `opa` database (`CLICKHOUSE_DB=opa`). Peer products use separate databases on the same server when co-deployed.
 
 ## Tenancy
 
