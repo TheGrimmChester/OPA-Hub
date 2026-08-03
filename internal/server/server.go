@@ -82,6 +82,8 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("/api/query", queryH.ServeQueryRoot)
 	s.mux.HandleFunc("/api/admin", queryH.ServeAdmin)
 	s.mux.HandleFunc("/api/services", queryH.ServeServicesSkeleton)
+
+	s.registerTenancyAndPeerRoutes()
 }
 
 func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
