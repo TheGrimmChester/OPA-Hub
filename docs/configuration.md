@@ -7,7 +7,7 @@
 | `OPA_AUTH_REQUIRED` | `` | When `1`/`true`/`yes`/`on`, dashboard routes expect authenticated callers |
 | `OPEN_SERVICE_JWT_SECRET` | `` | Service JWT mint/validate secret (peer calls) |
 | `CLICKHOUSE_URL` | `http://clickhouse:8123` | Central ClickHouse HTTP endpoint |
-| `CLICKHOUSE_DATABASE` | `opa` | ClickHouse database name |
+| `CLICKHOUSE_DB` | `opa` | ClickHouse database name (preferred). Alias: `CLICKHOUSE_DATABASE` |
 | `CLICKHOUSE_USER` | `` | Optional ClickHouse username |
 | `CLICKHOUSE_PASSWORD` | `` | Optional ClickHouse password |
 | `OPA_PUBLIC_URL` | `` | Public URL advertised for deep links |

@@ -15,13 +15,13 @@ import (
 	openhttp "github.com/TheGrimmChester/open-http-go"
 )
 
-// Handler issues user JWTs for OPA-Dashboard when co-deployed.
-// Local user store is in-memory for the control-plane skeleton;
-// durable users land with ClickHouse migration ownership on the hub.
+// Handler issues user JWTs for OPA-Dashboard when co-deployed, and for
+// standalone OPA installs. Tokens are standard HS256 JWTs (Open-Auth-Go).
 type Handler struct {
 	JWTSecret    []byte
 	AuthRequired bool
 	PublicURL    string
+	Issuer       string
 
 	mu    sync.RWMutex
 	users map[string]userRecord // username → record
@@ -46,6 +46,7 @@ func New(jwtSecret string, authRequired bool, publicURL string) *Handler {
 		JWTSecret:    secret,
 		AuthRequired: authRequired,
 		PublicURL:    publicURL,
+		Issuer:       "opa-hub",
 		users:        make(map[string]userRecord),
 	}
 	// Seed a lab admin when no durable store is configured.
@@ -64,64 +65,17 @@ func hashPassword(password string, secret []byte) string {
 	return base64.RawURLEncoding.EncodeToString(mac.Sum(nil))
 }
 
-type tokenClaims struct {
-	Username string `json:"username"`
-	Role     string `json:"role"`
-	Exp      int64  `json:"exp"`
-	Iat      int64  `json:"iat"`
-	Iss      string `json:"iss"`
-}
-
 func (h *Handler) mintToken(username, role string) (string, time.Time, error) {
-	now := time.Now().UTC()
-	exp := now.Add(24 * time.Hour)
-	claims := tokenClaims{
-		Username: username,
-		Role:     role,
-		Exp:      exp.Unix(),
-		Iat:      now.Unix(),
-		Iss:      "opa-hub",
-	}
-	payload, err := json.Marshal(claims)
+	ttl := 24 * time.Hour
+	tok, err := openauth.MintUserJWT(h.JWTSecret, username, role, h.Issuer, ttl)
 	if err != nil {
 		return "", time.Time{}, err
 	}
-	body := base64.RawURLEncoding.EncodeToString(payload)
-	mac := hmac.New(sha256.New, h.JWTSecret)
-	_, _ = mac.Write([]byte(body))
-	sig := base64.RawURLEncoding.EncodeToString(mac.Sum(nil))
-	return "oph." + body + "." + sig, exp, nil
+	return tok, time.Now().UTC().Add(ttl), nil
 }
 
-func (h *Handler) parseToken(token string) (*tokenClaims, error) {
-	if err := openauth.ValidateUserJWT(token, h.JWTSecret); err != nil {
-		// Open-Auth-Go skeleton only checks non-empty; continue with local parse.
-		if token == "" || len(h.JWTSecret) == 0 {
-			return nil, err
-		}
-	}
-	parts := strings.Split(token, ".")
-	if len(parts) != 3 || parts[0] != "oph" {
-		return nil, openauth.ErrInvalidToken
-	}
-	raw, err := base64.RawURLEncoding.DecodeString(parts[1])
-	if err != nil {
-		return nil, openauth.ErrInvalidToken
-	}
-	mac := hmac.New(sha256.New, h.JWTSecret)
-	_, _ = mac.Write([]byte(parts[1]))
-	want := base64.RawURLEncoding.EncodeToString(mac.Sum(nil))
-	if !hmac.Equal([]byte(want), []byte(parts[2])) {
-		return nil, openauth.ErrInvalidToken
-	}
-	var claims tokenClaims
-	if err := json.Unmarshal(raw, &claims); err != nil {
-		return nil, openauth.ErrInvalidToken
-	}
-	if time.Now().Unix() > claims.Exp {
-		return nil, openauth.ErrInvalidToken
-	}
-	return &claims, nil
+func (h *Handler) parseToken(token string) (*openauth.UserClaims, error) {
+	return openauth.ParseUserJWT(token, h.JWTSecret)
 }
 
 // ServeLogin handles POST /api/auth/login.
@@ -153,6 +107,7 @@ func (h *Handler) ServeLogin(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, map[string]any{
 		"token":      tok,
 		"expires_at": exp.Format(time.RFC3339),
+		"mode":       "hub",
 		"user": map[string]any{
 			"username": u.Username,
 			"role":     u.Role,
@@ -218,7 +173,7 @@ func (h *Handler) ServeStatus(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	authHeader := r.Header.Get("Authorization")
-	var claims *tokenClaims
+	var claims *openauth.UserClaims
 	if strings.HasPrefix(strings.ToLower(authHeader), "bearer ") {
 		tok := strings.TrimSpace(authHeader[7:])
 		claims, _ = h.parseToken(tok)
@@ -227,8 +182,9 @@ func (h *Handler) ServeStatus(w http.ResponseWriter, r *http.Request) {
 	out := map[string]any{
 		"authenticated": authenticated,
 		"auth_required": h.AuthRequired,
-		"issuer":        "opa-hub",
+		"issuer":        h.Issuer,
 		"public_url":    h.PublicURL,
+		"mode":          "hub",
 	}
 	if authenticated {
 		out["user"] = map[string]any{"username": claims.Username, "role": claims.Role}
