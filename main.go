@@ -1,26 +1,14 @@
 package main
 
 import (
-	"encoding/json"
 	"log"
-	"net/http"
-	"os"
+
+	"github.com/TheGrimmChester/opa-hub/internal/config"
+	"github.com/TheGrimmChester/opa-hub/internal/server"
 )
 
 func main() {
-	addr := env("LISTEN_ADDR", ":8080")
-	mux := http.NewServeMux()
-	mux.HandleFunc("/api/health", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(map[string]string{"status": "ok", "service": "opa-hub"})
-	})
-	log.Printf("opa-hub listening on %s", addr)
-	log.Fatal(http.ListenAndServe(addr, mux))
-}
-
-func env(k, def string) string {
-	if v := os.Getenv(k); v != "" {
-		return v
-	}
-	return def
+	cfg := config.Load()
+	srv := server.New(cfg)
+	log.Fatal(srv.ListenAndServe())
 }
