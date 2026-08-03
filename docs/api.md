@@ -71,4 +71,14 @@ Lab default user: `admin` / `admin` (change immediately; set a strong `JWT_SECRE
 | `GET` | `/api/admin` | Operator summary (agents, ClickHouse write-hook stats) |
 | `GET` | `/api/services` | Empty services list placeholder (`source: opa-hub`) |
 
+## Tenancy and GitHub linkage (for OPM)
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/api/tenancy/organizations` | Organizations known to the hub (from agent registry; always includes `default-org`) |
+| `GET` | `/api/github/status` | Declares that GitHub App/PAT credentials live in **ORA** (`credentials_home: ora`) |
+| `GET` | `/api/peer/health` | Service JWT probe (`aud=opa-hub`, scope `health:read`) |
+
+Hub owns identity (user JWTs) and a lightweight org directory. GitHub credentials stay in ORA connectors; OPM calls both peers.
+
 Full trace/metric/log query surfaces continue to seed on the hub as ownership moves off the edge agent.

@@ -167,6 +167,45 @@ func (r *Registry) Count() int {
 	return len(r.agents)
 }
 
+// OrganizationSummary is a tenancy org known to the hub (from agent labels).
+type OrganizationSummary struct {
+	ID         string `json:"id"`
+	AgentCount int    `json:"agent_count"`
+	Source     string `json:"source"`
+}
+
+// Organizations returns unique organization_id values from registered agents.
+// Always includes default-org so OPM/ORA have a stable picker seed.
+func (r *Registry) Organizations() []OrganizationSummary {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	counts := map[string]int{}
+	for _, a := range r.agents {
+		org := strings.TrimSpace(a.OrganizationID)
+		if org == "" {
+			org = "default-org"
+		}
+		counts[org]++
+	}
+	if _, ok := counts["default-org"]; !ok {
+		counts["default-org"] = 0
+	}
+	ids := make([]string, 0, len(counts))
+	for id := range counts {
+		ids = append(ids, id)
+	}
+	sort.Strings(ids)
+	out := make([]OrganizationSummary, 0, len(ids))
+	for _, id := range ids {
+		out = append(out, OrganizationSummary{
+			ID:         id,
+			AgentCount: counts[id],
+			Source:     "agent_registry",
+		})
+	}
+	return out
+}
+
 func (r *Registry) statusOf(a *Agent) string {
 	if time.Since(a.LastSeenAt) > r.staleAfter {
 		return "stale"
