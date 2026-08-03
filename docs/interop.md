@@ -5,7 +5,7 @@ Products are optional peers. Empty peer URLs disable cross-product features.
 | Variable | Purpose |
 |----------|---------|
 | `PEER_OPA_URL` | OPA hub base URL (for ORA/OSA/OPL callers) |
-| `PEER_ORA_URL` | ORA API base URL (GitHub App/PAT credential home for OPM) |
+| `PEER_ORA_URL` | ORA API base URL (GitHub App/PAT credential home for OPM and OSA) |
 | `PEER_OSA_URL` | OSA API base URL |
 | `PEER_OPL_URL` | OPL API base URL |
 | `PEER_OPM_URL` | OPM API base URL |
@@ -13,7 +13,7 @@ Products are optional peers. Empty peer URLs disable cross-product features.
 
 ## GitHub credentials
 
-The hub does **not** store GitHub App private keys or PATs. Co-deployed stacks set `PEER_ORA_URL` on the hub so `/api/github/status` can advertise the credential home. OPM discovers organizations via hub tenancy, then lists repos through ORA connectors.
+The hub does **not** store GitHub App private keys or PATs. Co-deployed stacks set `PEER_ORA_URL` on the hub so `/api/github/status` can advertise the credential home. OPM and OSA discover organizations via hub tenancy, then list repos through ORA connectors.
 
 ## ClickHouse
 

@@ -175,7 +175,7 @@ type OrganizationSummary struct {
 }
 
 // Organizations returns unique organization_id values from registered agents.
-// Always includes default-org so OPM/ORA have a stable picker seed.
+// Always includes default-org so OPM/OSA/ORA have a stable picker seed.
 func (r *Registry) Organizations() []OrganizationSummary {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
