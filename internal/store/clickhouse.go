@@ -38,6 +38,22 @@ func (w *Writer) Ping() error {
 	return w.client.Ping()
 }
 
+// Query runs a SELECT against the configured ClickHouse database.
+func (w *Writer) Query(sql string) ([]map[string]any, error) {
+	if w == nil || w.client == nil {
+		return nil, fmt.Errorf("clickhouse writer not configured")
+	}
+	return w.client.Query(sql)
+}
+
+// Client exposes the underlying Open-ClickHouse-Go client for advanced callers.
+func (w *Writer) Client() *openclickhouse.Client {
+	if w == nil {
+		return nil
+	}
+	return w.client
+}
+
 // EnsureDatabase creates the configured product database when missing.
 func (w *Writer) EnsureDatabase() error {
 	if w == nil || w.client == nil {

@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.3.0
+
+- Query ownership on hub: `/api/services`, `/api/services/metadata`, `/api/traces`, `/api/traces/{id}`, `/api/traces/{id}/full` read central ClickHouse `opa` (entry-span scoped service totals).
+- Expanded `/api/query` capability advertisement; `/api/admin` marks `query_owner`.
+- User JWT middleware on dashboard query/admin routes when `OPA_AUTH_REQUIRED` is set.
+- Open-ClickHouse-Go `Query` used for SELECT paths.
+
 ## 0.2.0
 
 - Agent registry (`/api/agents/register`, heartbeat, list/get).
