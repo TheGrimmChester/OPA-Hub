@@ -17,7 +17,7 @@ import (
 	"github.com/TheGrimmChester/opa-hub/internal/store"
 )
 
-const version = "0.2.0"
+const version = "0.3.0"
 
 // Server is the opa-hub HTTP control plane.
 type Server struct {
@@ -27,6 +27,7 @@ type Server struct {
 	reg     *registry.Registry
 	writer  *store.Writer
 	started time.Time
+	authH   *auth.Handler
 }
 
 // New builds a fully wired hub server.
@@ -58,6 +59,7 @@ func (s *Server) routes() {
 	regH := &registry.Handler{Reg: s.reg, EnrollToken: s.cfg.EnrollToken}
 	ingH := &ingest.Handler{Reg: s.reg, Writer: s.writer, EnrollToken: s.cfg.EnrollToken}
 	authH := auth.New(s.cfg.JWTSecret, s.cfg.AuthRequired, s.cfg.OPAPublicURL)
+	s.authH = authH
 	queryH := &query.Handler{
 		Reg:       s.reg,
 		Writer:    s.writer,
@@ -69,8 +71,8 @@ func (s *Server) routes() {
 
 	s.mux.HandleFunc("/api/agents/register", regH.ServeRegister)
 	s.mux.HandleFunc("/api/agents/heartbeat", regH.ServeHeartbeat)
-	s.mux.HandleFunc("/api/agents", regH.ServeList)
-	s.mux.HandleFunc("/api/agents/", regH.ServeGet)
+	s.mux.HandleFunc("/api/agents", authH.Middleware(regH.ServeList))
+	s.mux.HandleFunc("/api/agents/", authH.Middleware(regH.ServeGet))
 
 	s.mux.HandleFunc("/api/ingest/push", ingH.ServePush)
 
@@ -79,9 +81,13 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("/api/auth/logout", authH.ServeLogout)
 	s.mux.HandleFunc("/api/auth/status", authH.ServeStatus)
 
-	s.mux.HandleFunc("/api/query", queryH.ServeQueryRoot)
-	s.mux.HandleFunc("/api/admin", queryH.ServeAdmin)
-	s.mux.HandleFunc("/api/services", queryH.ServeServicesSkeleton)
+	// Dashboard query surface — hub owns ClickHouse reads (not edge agents).
+	s.mux.HandleFunc("/api/query", authH.Middleware(queryH.ServeQueryRoot))
+	s.mux.HandleFunc("/api/admin", authH.Middleware(queryH.ServeAdmin))
+	s.mux.HandleFunc("/api/services/metadata", authH.Middleware(queryH.ServeServicesMetadata))
+	s.mux.HandleFunc("/api/services", authH.Middleware(queryH.ServeServices))
+	s.mux.HandleFunc("/api/traces/", authH.Middleware(queryH.ServeTracesSubpath))
+	s.mux.HandleFunc("/api/traces", authH.Middleware(queryH.ServeTraces))
 
 	s.registerTenancyAndPeerRoutes()
 }
