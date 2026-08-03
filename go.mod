@@ -9,6 +9,8 @@ require (
 	github.com/TheGrimmChester/open-logger-go v0.0.0
 )
 
+require github.com/golang-jwt/jwt/v5 v5.3.1 // indirect
+
 replace (
 	github.com/TheGrimmChester/open-auth-go => ../Open-Auth-Go
 	github.com/TheGrimmChester/open-clickhouse-go => ../Open-ClickHouse-Go

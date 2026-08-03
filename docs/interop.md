@@ -10,6 +10,14 @@ Products are optional peers. Empty peer URLs disable cross-product features.
 | `PEER_OPL_URL` | OPL API base URL |
 | `OPEN_SERVICE_JWT_SECRET` | Service JWT mint/validate secret |
 
+## ClickHouse
+
+| Variable | Purpose |
+|----------|---------|
+| `CLICKHOUSE_DB` | Database name (default `opa`) |
+
+Hub-issued user JWTs are validated by peer products when they share `JWT_SECRET` in co-deployed mode.
+
 ## Edge → hub
 
 | Variable | Purpose |

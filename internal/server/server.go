@@ -39,6 +39,9 @@ func New(cfg config.Config) *Server {
 		Username: cfg.ClickHouseUser,
 		Password: cfg.ClickHousePassword,
 	})
+	if err := writer.EnsureDatabase(); err != nil {
+		log.Warn("clickhouse ensure database", map[string]any{"error": err.Error(), "database": cfg.ClickHouseDatabase})
+	}
 	s := &Server{
 		cfg:     cfg,
 		log:     log,
