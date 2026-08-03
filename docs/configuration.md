@@ -3,7 +3,27 @@
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `LISTEN_ADDR` | `:8080` | HTTP listen address |
-| `JWT_SECRET` | `` | User JWT signing/validation secret |
-| `OPEN_SERVICE_JWT_SECRET` | `` | Service JWT mint/validate secret |
+| `JWT_SECRET` | `` | User JWT signing secret (≥32 bytes recommended when `OPA_AUTH_REQUIRED=1`) |
+| `OPA_AUTH_REQUIRED` | `` | When `1`/`true`/`yes`/`on`, dashboard routes expect authenticated callers |
+| `OPEN_SERVICE_JWT_SECRET` | `` | Service JWT mint/validate secret (peer calls) |
 | `CLICKHOUSE_URL` | `http://clickhouse:8123` | Central ClickHouse HTTP endpoint |
+| `CLICKHOUSE_DATABASE` | `opa` | ClickHouse database name |
+| `CLICKHOUSE_USER` | `` | Optional ClickHouse username |
+| `CLICKHOUSE_PASSWORD` | `` | Optional ClickHouse password |
 | `OPA_PUBLIC_URL` | `` | Public URL advertised for deep links |
+| `OPA_HUB_ENROLL_TOKEN` | `` | Shared secret edge agents present on register/push (`X-OPA-Enroll-Token` or `Authorization: Bearer …`). Empty disables enroll auth (lab only). |
+| `OPA_HUB_AGENT_STALE_AFTER` | `5m` | Duration after which an agent is marked `stale` without heartbeat/push |
+| `CORS_ORIGIN` | `` | Optional `Access-Control-Allow-Origin` value for dashboard origins |
+
+## Edge agent pairing
+
+On each edge `opa-agent`:
+
+| Variable | Description |
+|----------|-------------|
+| `OPA_HUB_URL` | Base URL of this hub (e.g. `https://opa-hub.example:8080`) |
+| `OPA_HUB_ENROLL_TOKEN` | Same enroll token as the hub |
+
+## Dashboard
+
+Point `OPA-Dashboard` at the hub only (`VITE_API_URL` → hub base URL). Do not configure edge agent URLs in the UI.
