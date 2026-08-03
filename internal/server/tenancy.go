@@ -10,8 +10,8 @@ import (
 	openhttp "github.com/TheGrimmChester/open-http-go"
 )
 
-// registerTenancyAndPeerRoutes exposes org discovery for OPM and peer health.
-// GitHub App/PAT credentials are not stored on the hub — OPM links via PEER_ORA_URL.
+// registerTenancyAndPeerRoutes exposes org discovery for OPM/OSA and peer health.
+// GitHub App/PAT credentials are not stored on the hub — peers link via PEER_ORA_URL.
 func (s *Server) registerTenancyAndPeerRoutes() {
 	s.mux.HandleFunc("/api/tenancy/organizations", s.handleTenancyOrganizations)
 	s.mux.HandleFunc("/api/github/status", s.handleGitHubStatus)
@@ -27,7 +27,7 @@ func (s *Server) handleTenancyOrganizations(w http.ResponseWriter, r *http.Reque
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(map[string]any{
 		"organizations": orgs,
-		"note":          "Hub identity/tenancy directory. GitHub App and PAT credentials live in ORA (PEER_ORA_URL); OPM discovers repos through ora-api connectors scoped by organization_id.",
+		"note":          "Hub identity/tenancy directory. GitHub App and PAT credentials live in ORA (PEER_ORA_URL); OPM and OSA discover repos through ora-api connectors scoped by organization_id.",
 	})
 }
 
@@ -43,7 +43,7 @@ func (s *Server) handleGitHubStatus(w http.ResponseWriter, r *http.Request) {
 		"peer_ora_url":        peerORA,
 		"peer_ora_configured": peerORA != "",
 		"hub_role":            "identity_and_tenancy",
-		"note":                "Connect GitHub App or PAT in ORA. Hub issues user JWTs and lists organizations; it does not store GitHub secrets.",
+		"note":                "Connect GitHub App or PAT in ORA. Hub issues user JWTs and lists organizations; OPM/OSA list repos via ORA. Hub does not store GitHub secrets.",
 	})
 }
 
