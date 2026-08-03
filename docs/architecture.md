@@ -45,8 +45,8 @@ flowchart TB
 | `internal/registry` | Agent register / heartbeat / list |
 | `internal/ingest` | Edge push accept + ClickHouse write hooks |
 | `internal/auth` | User JWT issuer for the dashboard (`/api/auth/*`) |
-| `internal/query` | Query/admin skeleton for dashboard wiring |
-| `internal/store` | ClickHouse writer hooks on Open-ClickHouse-Go |
+| `internal/query` | Dashboard query/admin API reading central ClickHouse (`services`, `traces`, …) |
+| `internal/store` | ClickHouse writer + SELECT via Open-ClickHouse-Go |
 
 ## Containers
 
