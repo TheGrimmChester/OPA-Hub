@@ -4,8 +4,9 @@
 |----------|---------|-------------|
 | `LISTEN_ADDR` | `:8080` | HTTP listen address |
 | `JWT_SECRET` | `` | User JWT signing secret (≥32 bytes recommended when `OPA_AUTH_REQUIRED=1`) |
-| `OPA_AUTH_REQUIRED` | `` | When `1`/`true`/`yes`/`on`, dashboard routes expect authenticated callers |
-| `OPEN_SERVICE_JWT_SECRET` | `` | Service JWT mint/validate secret (peer calls) |
+| `OPA_AUTH_REQUIRED` | `` | When `1`/`true`/`yes`/`on`, dashboard and tenancy discovery routes expect authenticated callers |
+| `AUTH_MODE` | `` | Reported on `/api/health` as `auth_mode` (`standalone` \| `codeployed`; health defaults to `standalone` when unset) |
+| `OPEN_SERVICE_JWT_SECRET` | `` | Service JWT mint/validate secret (peer calls; prefer distinct from `JWT_SECRET`) |
 | `CLICKHOUSE_URL` | `http://clickhouse:8123` | Central ClickHouse HTTP endpoint |
 | `CLICKHOUSE_DB` | `opa` | ClickHouse database name (preferred). Alias: `CLICKHOUSE_DATABASE` |
 | `CLICKHOUSE_USER` | `` | Optional ClickHouse username |
