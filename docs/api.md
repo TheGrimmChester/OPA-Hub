@@ -7,7 +7,7 @@ Health `service` id: `opa-hub`.
 `GET /api/health`
 
 ```json
-{"status":"ok","service":"opa-hub","version":"0.4.1","agents":0,"clickhouse":true,"topology":"hub-spoke"}
+{"status":"ok","service":"opa-hub","version":"0.5.0","agents":0,"clickhouse":true,"topology":"hub-spoke"}
 ```
 
 ## Agent registry

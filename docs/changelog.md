@@ -1,10 +1,12 @@
 # Changelog
 
-## 0.4.1
+## 0.5.0
 
-- Synthetics list health fields aligned with the edge agent / dashboard (`uptime_24h`, `avg_latency_ms_24h`, `last_ok`, `last_run`, `last_error`).
-- Hub owns synthetics CRUD and results read against `opa.synthetic_checks` / `opa.synthetic_results`; edge agent continues to run probes.
-- Documented hub vs edge ownership for writers and workers (`docs/ownership.md`).
+- Hub owns additional RUM read surfaces: `/api/rum/detail`, `/api/rum/slo`, `/api/rum/facets`, `/api/rum/vitals/attribution`.
+- Profile flame graph: `/api/profiles/flame` from `opa.profile_edges`.
+- Error detail read: `/api/errors/{id}` (status/assign mutations remain on the edge agent).
+- Trace log correlation: `/api/traces/{id}/logs` from `opa.logs`.
+- Service map includes external dependency edges (database, HTTP, Redis, cache) from `opa.spans_full`.
 
 ## 0.4.0
 

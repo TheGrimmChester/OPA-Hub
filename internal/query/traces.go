@@ -1,8 +1,10 @@
 package query
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
+	"strconv"
 	"strings"
 
 	openhttp "github.com/TheGrimmChester/open-http-go"
@@ -150,9 +152,54 @@ func (h *Handler) ServeTracesSubpath(w http.ResponseWriter, r *http.Request) {
 	wantFull := len(parts) >= 2 && parts[1] == "full"
 
 	if len(parts) >= 2 && parts[1] == "logs" {
-		// Logs correlation stays on the edge agent for now; return an empty
-		// compatible payload so the dashboard does not hard-fail.
-		writeJSON(w, map[string]any{"logs": []any{}, "trace_id": traceID, "source": "opa-hub"})
+		limit := 100
+		if v := r.URL.Query().Get("limit"); v != "" {
+			if n, err := strconv.Atoi(v); err == nil && n > 0 {
+				limit = n
+			}
+		}
+		if limit > 500 {
+			limit = 500
+		}
+		spanID := strings.TrimSpace(r.URL.Query().Get("span_id"))
+		where := fmt.Sprintf("trace_id = '%s'", escapeSQL(traceID))
+		where += tenantAnd(r, "")
+		if spanID != "" {
+			where += fmt.Sprintf(" AND span_id = '%s'", escapeSQL(spanID))
+		}
+		sql := fmt.Sprintf(`SELECT id, trace_id, span_id, service, level, message, timestamp, fields
+			FROM opa.logs
+			WHERE %s
+			ORDER BY timestamp DESC
+			LIMIT %d`, where, limit)
+		rows, err := h.Writer.Query(sql)
+		if err != nil {
+			openhttp.WriteError(w, http.StatusInternalServerError, "query_error", err.Error())
+			return
+		}
+		logs := make([]map[string]any, 0, len(rows))
+		for _, row := range rows {
+			var fields any
+			if s := asString(row, "fields"); s != "" {
+				_ = json.Unmarshal([]byte(s), &fields)
+			}
+			logs = append(logs, map[string]any{
+				"id":        asString(row, "id"),
+				"trace_id":  asString(row, "trace_id"),
+				"span_id":   asString(row, "span_id"),
+				"service":   asString(row, "service"),
+				"level":     asString(row, "level"),
+				"message":   asString(row, "message"),
+				"timestamp": asString(row, "timestamp"),
+				"fields":    fields,
+			})
+		}
+		writeJSON(w, map[string]any{
+			"logs":     logs,
+			"count":    len(logs),
+			"trace_id": traceID,
+			"source":   "opa-hub",
+		})
 		return
 	}
 

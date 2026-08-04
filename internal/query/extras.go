@@ -1,9 +1,11 @@
 package query
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"strconv"
+	"strings"
 
 	openhttp "github.com/TheGrimmChester/open-http-go"
 )
@@ -136,9 +138,11 @@ func (h *Handler) ServeErrors(w http.ResponseWriter, r *http.Request) {
 	}
 	errors := make([]map[string]any, 0, len(rows))
 	for _, row := range rows {
+		gid := asString(row, "group_id")
 		errors = append(errors, map[string]any{
-			"id":            asString(row, "group_id"),
-			"group_id":      asString(row, "group_id"),
+			"id":            gid,
+			"error_id":      gid,
+			"group_id":      gid,
 			"error_type":    asString(row, "error_type"),
 			"error_message": asString(row, "error_message"),
 			"service":       asString(row, "service"),
@@ -146,8 +150,109 @@ func (h *Handler) ServeErrors(w http.ResponseWriter, r *http.Request) {
 			"first_seen":    asString(row, "first_seen"),
 			"last_seen":     asString(row, "last_seen"),
 			"status":        asString(row, "status"),
-			"assigned_to":   asString(row, "assigned_to"),
+			"assigned_to":   asStringPtr(row, "assigned_to"),
 		})
 	}
 	writeJSON(w, map[string]any{"errors": errors, "count": len(errors), "source": "opa-hub"})
+}
+
+// ServeErrorsSubpath handles GET /api/errors/{group_id} — error detail (read-only).
+// Status/assign mutations remain on the edge agent.
+func (h *Handler) ServeErrorsSubpath(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		openhttp.WriteError(w, http.StatusMethodNotAllowed, "method_not_allowed", "GET required")
+		return
+	}
+	if h.Writer == nil {
+		openhttp.WriteError(w, http.StatusServiceUnavailable, "clickhouse_unavailable", "ClickHouse not configured")
+		return
+	}
+	groupID := strings.TrimPrefix(r.URL.Path, "/api/errors/")
+	groupID = strings.Trim(groupID, "/")
+	if groupID == "" || strings.HasPrefix(groupID, "groups/") {
+		openhttp.WriteError(w, http.StatusBadRequest, "bad_request", "error id required")
+		return
+	}
+	errWhere := fmt.Sprintf("group_id = '%s'", escapeSQL(groupID)) + tenantAnd(r, "")
+
+	sql := fmt.Sprintf(`SELECT
+		any(error_type) as error_type,
+		any(error_message) as error_message,
+		any(service) as service,
+		count() as count,
+		min(occurred_at) as first_seen,
+		max(occurred_at) as last_seen
+		FROM opa.error_instances WHERE %s`, errWhere)
+	rows, err := h.Writer.Query(sql)
+	if err != nil {
+		openhttp.WriteError(w, http.StatusInternalServerError, "query_error", err.Error())
+		return
+	}
+	if len(rows) == 0 || asUint64(rows[0], "count") == 0 {
+		openhttp.WriteError(w, http.StatusNotFound, "not_found", "error not found")
+		return
+	}
+	row := rows[0]
+
+	stackTrace := []any{}
+	stackRows, _ := h.Writer.Query(fmt.Sprintf(`SELECT stack_trace FROM opa.error_instances
+		WHERE %s AND stack_trace != '' LIMIT 1`, errWhere))
+	if len(stackRows) > 0 {
+		if s := asString(stackRows[0], "stack_trace"); s != "" {
+			if err := json.Unmarshal([]byte(s), &stackTrace); err != nil {
+				stackTrace = []any{s}
+			}
+		}
+	}
+
+	traceRows, _ := h.Writer.Query(fmt.Sprintf(`SELECT trace_id, max(occurred_at) as occurred_at
+		FROM opa.error_instances WHERE %s AND trace_id != ''
+		GROUP BY trace_id ORDER BY occurred_at DESC LIMIT 10`, errWhere))
+	relatedTraces := make([]map[string]any, 0, len(traceRows))
+	for _, tRow := range traceRows {
+		relatedTraces = append(relatedTraces, map[string]any{
+			"trace_id":    asString(tRow, "trace_id"),
+			"occurred_at": asString(tRow, "occurred_at"),
+		})
+	}
+
+	trendRows, _ := h.Writer.Query(fmt.Sprintf(`SELECT
+		toStartOfHour(occurred_at) as time, count() as count
+		FROM opa.error_instances WHERE %s AND occurred_at >= now() - INTERVAL 7 DAY
+		GROUP BY time ORDER BY time`, errWhere))
+	trends := make([]map[string]any, 0, len(trendRows))
+	for _, tRow := range trendRows {
+		trends = append(trends, map[string]any{
+			"time":  asString(tRow, "time"),
+			"count": asUint64(tRow, "count"),
+		})
+	}
+
+	status := "unresolved"
+	var assignedTo any
+	statusSQL := fmt.Sprintf(`SELECT status, assigned_to FROM opa.error_group_status FINAL
+		WHERE group_id = '%s'%s LIMIT 1`, escapeSQL(groupID), tenantAnd(r, ""))
+	if sr, _ := h.Writer.Query(statusSQL); len(sr) > 0 {
+		if s := asString(sr[0], "status"); s != "" {
+			status = s
+		}
+		assignedTo = asStringPtr(sr[0], "assigned_to")
+	}
+
+	writeJSON(w, map[string]any{
+		"error_id":       groupID,
+		"group_id":       groupID,
+		"error_type":     asString(row, "error_type"),
+		"error_message":  asString(row, "error_message"),
+		"service":        asString(row, "service"),
+		"count":          asUint64(row, "count"),
+		"first_seen":     asString(row, "first_seen"),
+		"last_seen":      asString(row, "last_seen"),
+		"status":         status,
+		"assigned_to":    assignedTo,
+		"stack_trace":    stackTrace,
+		"related_traces": relatedTraces,
+		"trends":         trends,
+		"source":         "opa-hub",
+	})
 }
