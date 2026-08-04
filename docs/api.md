@@ -7,7 +7,7 @@ Health `service` id: `opa-hub`.
 `GET /api/health`
 
 ```json
-{"status":"ok","service":"opa-hub","version":"0.4.0","agents":0,"clickhouse":true,"topology":"hub-spoke"}
+{"status":"ok","service":"opa-hub","version":"0.4.1","agents":0,"clickhouse":true,"topology":"hub-spoke"}
 ```
 
 ## Agent registry
@@ -93,14 +93,18 @@ When `OPA_AUTH_REQUIRED=1`, these routes require `Authorization: Bearer <user JW
 | `GET` | `/api/rum/sessions/{id}` | Session timeline (page views / ajax / errors) |
 | `GET` | `/api/profiles` | Aggregated profiling top functions |
 | `GET` | `/api/errors` | Errors inbox group list |
-| `GET` | `/api/synthetics` | Synthetic checks list (+ 24h health) |
+| `GET`/`POST` | `/api/synthetics` | List/create synthetic checks (`opa.synthetic_checks`) |
+| `GET`/`PUT`/`DELETE` | `/api/synthetics/{id}` | Get/update/delete a check |
+| `GET` | `/api/synthetics/{id}/results` | Recent probe results (`opa.synthetic_results`) |
 | `GET` | `/api/synthetics/locations` | Probe location placeholders |
 
-The hub **owns** these reads against the central ClickHouse `opa` database. Routine dashboard traffic does not call edge agents for the paths above.
+The hub **owns** these reads (and config CRUD) against the central ClickHouse `opa` database. Routine dashboard traffic does not call edge agents for the paths above.
 
-Alert **evaluation** (periodic condition checks and notification delivery) still runs on the edge agent, which reloads rules from `opa.alerts`. Hub owns the dashboard CRUD/list/history surface.
+See [ownership.md](ownership.md) for the hub vs edge writer/worker split.
 
-RUM **ingest** (`POST /api/rum`), session replay payloads, error status mutations, and synthetic probe scheduling remain on the edge agent.
+Alert **evaluation** (periodic condition checks and notification delivery) still runs on the edge agent, which reloads rules from `opa.alerts` each check tick. Hub owns the dashboard CRUD/list/history surface.
+
+RUM **ingest** (`POST /api/rum`) and synthetic **probe scheduling** remain on the edge agent. Synthetic check definitions and result reads are hub-owned; the agent writes probe outcomes into the same `opa.synthetic_results` table.
 
 ### Services response (shape)
 
@@ -135,4 +139,4 @@ RUM **ingest** (`POST /api/rum`), session replay payloads, error status mutation
 
 Hub owns identity (user JWTs) and a lightweight org directory. GitHub credentials stay in ORA connectors; OPM calls both peers.
 
-Remaining dashboard surfaces still seeded on the edge agent include RUM ingest/replay deep APIs, error group status mutations, synthetic probe workers, and alert evaluation/delivery.
+Remaining edge-owned workers include RUM ingest/replay deep APIs, error group status mutations, synthetic probe workers, alert evaluation/delivery, SLO, and anomaly schedulers.
