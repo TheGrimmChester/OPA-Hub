@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.4.0
+
+- Hub owns additional dashboard query surfaces against central ClickHouse `opa`:
+  metrics explorer (`/api/metrics/names|labels|label-values|query-range`), performance/network series,
+  service map (`/api/service-map`, thresholds, edge-traces), alerts list/CRUD/history,
+  RUM metrics and sessions, profiling summaries, errors inbox list, synthetics list.
+- Auth login/register uses Open-Auth-Go `LocalIssuer`.
+- Store wrapper exposes `Exec` for INSERT/ALTER via Open-ClickHouse-Go.
+
 ## 0.3.0
 
 - Query ownership on hub: `/api/services`, `/api/services/metadata`, `/api/traces`, `/api/traces/{id}`, `/api/traces/{id}/full` read central ClickHouse `opa` (entry-span scoped service totals).
