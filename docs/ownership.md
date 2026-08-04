@@ -18,8 +18,10 @@ Open Profiling Agent uses hub-and-spoke topology with a **shared central ClickHo
 | Logs explorer | **Hub** | `opa.logs` (optional join to `opa.spans_min` for tenancy) |
 | Synthetics list / CRUD / results read | **Hub** | `opa.synthetic_checks`, `opa.synthetic_results` |
 | Synthetics HTTP probes | **Edge agent** | reads `opa.synthetic_checks`; writes `opa.synthetic_results` |
-| RUM browser ingest (`POST /api/rum`) | **Edge agent** | `opa.rum_events` (and related) |
-| RUM metrics / sessions query | **Hub** | same RUM tables |
+| RUM browser ingest (`POST /api/rum`, `POST /api/rum/replay`) | **Edge agent** | `opa.rum_events`, `opa.rum_replay_chunks` |
+| RUM metrics / sessions / detail / replay reads | **Hub** | same RUM tables |
+| Mobile crash ingest (`POST /api/mobile/crashes`) | **Edge agent** | `opa.mobile_crashes` |
+| Mobile crash / session reads | **Hub** | `opa.mobile_crashes` |
 
 ## Coherence rules
 
@@ -32,7 +34,7 @@ Open Profiling Agent uses hub-and-spoke topology with a **shared central ClickHo
 
 These surfaces remain edge-owned workers or deep APIs; move them only with an explicit ownership change:
 
-- RUM ingest and session-replay payloads
+- RUM ingest (`POST /api/rum`, `POST /api/rum/replay`) and mobile crash ingest (`POST /api/mobile/crashes`)
 - Synthetic probe workers
 - Alert notification channel delivery (webhook / Slack / email)
 - SLO evaluator ticker (writes `opa.slo_metrics`)
