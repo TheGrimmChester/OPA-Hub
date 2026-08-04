@@ -9,7 +9,7 @@ Open Profiling Agent uses hub-and-spoke topology with a **shared central ClickHo
 | Dashboard query / list / CRUD for UI | **Hub** | reads (and config writes) against central `opa` |
 | Local telemetry ingest (socket, OTLP, ND-JSON) | **Edge agent** | forward to hub ingest; may also write when `CLICKHOUSE_URL` points at central CH |
 | Alert rule CRUD / history list | **Hub** | `opa.alerts`, `opa.alert_history` |
-| Alert evaluation + notification delivery | **Edge agent** | reads `opa.alerts`; writes `opa.alert_history` on fire |
+| Alert evaluation + notification delivery | **Edge agent** | reads `opa.alerts` + `opa.alert_test_requests`; writes `opa.alert_history` on fire / manual Test |
 | SLO list / CRUD / compliance reads | **Hub** | `opa.slos`, `opa.slo_metrics` |
 | SLO evaluation | **Edge agent** | reads `opa.slos`; writes `opa.slo_metrics` |
 | Error inbox list / detail / status / assign | **Hub** | `opa.error_instances`, `opa.error_group_status` |
