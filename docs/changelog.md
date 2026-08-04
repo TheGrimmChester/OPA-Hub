@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.7.3
+
+- Trace Explorer facets: `GET /api/explore/facets` (Wave 14 agent query restored on hub against `opa.spans_min` / signal tables).
+
 ## 0.7.1
 
 - Alert Test (`POST /api/alerts/{id}`) queues `opa.alert_test_requests` for edge force-delivery and waits briefly for `opa.alert_history` (replaces the previous accepted stub).
