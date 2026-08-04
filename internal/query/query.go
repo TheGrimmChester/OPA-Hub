@@ -83,6 +83,8 @@ func (h *Handler) ServeQueryRoot(w http.ResponseWriter, r *http.Request) {
 			"stats",
 			"commands",
 			"key_transactions",
+			"infra_hosts",
+			"transactions_compare",
 		},
 		"source": "clickhouse",
 		"database": func() string {

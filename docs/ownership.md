@@ -17,6 +17,8 @@ Open Profiling Agent uses hub-and-spoke topology with a **shared central ClickHo
 | Anomaly detector / on-demand analyze | **Edge agent** | writes `opa.anomalies` |
 | Logs explorer | **Hub** | `opa.logs` (optional join to `opa.spans_min` for tenancy) |
 | SQL / Redis / HTTP / dumps / commands / stats / key-transactions | **Hub** | `opa.spans_min`, `opa.spans_full`, `opa.key_transactions`, `system.parts` |
+| Metrics host inventory (`GET /api/infra/hosts`) | **Hub** | `opa.metric_series` |
+| Cohort transaction compare (`GET /api/transactions/compare`) | **Hub** | `opa.spans_min` (entry spans) |
 | Synthetics list / CRUD / results read | **Hub** | `opa.synthetic_checks`, `opa.synthetic_results` |
 | Synthetics HTTP probes | **Edge agent** | reads `opa.synthetic_checks`; writes `opa.synthetic_results` |
 | RUM browser ingest (`POST /api/rum`, `POST /api/rum/replay`) | **Edge agent** | `opa.rum_events`, `opa.rum_replay_chunks` |
@@ -40,6 +42,17 @@ These surfaces remain edge-owned workers or deep APIs; move them only with an ex
 - Alert notification channel delivery (webhook / Slack / email)
 - SLO evaluator ticker (writes `opa.slo_metrics`)
 - Anomaly detector scheduler and `POST /api/anomalies/analyze`
+- Filter suggestions (`GET /api/filter-suggestions/*`) — implemented on edge agent; dashboard does not call these paths today
+- Call-graph window compare (`GET /api/callgraph/compare`) — dashboard UI scaffold only; no edge or hub backend yet (`opa.callgraph_agg` exists but no compare handler)
+
+## Deferred / skipped in this batch
+
+| Route | Dashboard calls? | Agent backend? | Decision |
+|-------|------------------|----------------|----------|
+| `GET /api/infra/hosts` | Yes (`Infrastructure.jsx`) | Yes | **Hub-owned** (this batch) |
+| `GET /api/transactions/compare` | Yes (`CohortCompare.jsx`) | Yes | **Hub-owned** (this batch) |
+| `GET /api/filter-suggestions/{keys,values}` | No | Yes | Stay on edge; hub skip |
+| `GET /api/callgraph/compare` | Yes (`CallgraphWindowCompare.jsx`) | No | Skip — scaffold only; implement when agent compare exists |
 
 ## Related docs
 
