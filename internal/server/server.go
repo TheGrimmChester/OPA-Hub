@@ -101,6 +101,7 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("/api/key-transactions", authH.Middleware(queryH.ServeKeyTransactions))
 
 	// Metrics explorer + performance charts
+	s.mux.HandleFunc("/api/infra/hosts", authH.Middleware(queryH.ServeInfraHosts))
 	s.mux.HandleFunc("/api/metrics/names", authH.Middleware(queryH.ServeMetricNames))
 	s.mux.HandleFunc("/api/metrics/labels", authH.Middleware(queryH.ServeMetricLabels))
 	s.mux.HandleFunc("/api/metrics/label-values", authH.Middleware(queryH.ServeMetricLabelValues))
@@ -150,6 +151,9 @@ func (s *Server) routes() {
 
 	// Logs explorer (main nav)
 	s.mux.HandleFunc("/api/logs", authH.Middleware(queryH.ServeLogs))
+
+	// Cohort compare (Compare Traces page)
+	s.mux.HandleFunc("/api/transactions/compare", authH.Middleware(queryH.ServeTransactionsCompare))
 
 	s.registerTenancyAndPeerRoutes()
 }

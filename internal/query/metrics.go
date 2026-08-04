@@ -485,3 +485,55 @@ func (h *Handler) ServeMetricsNetwork(w http.ResponseWriter, r *http.Request) {
 	}
 	writeJSON(w, map[string]any{"metrics": metrics, "source": "opa-hub"})
 }
+
+const hostStaleAfter = 5 * time.Minute
+
+// ServeInfraHosts handles GET /api/infra/hosts — host inventory from metric_series.
+func (h *Handler) ServeInfraHosts(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		openhttp.WriteError(w, http.StatusMethodNotAllowed, "method_not_allowed", "GET required")
+		return
+	}
+	if h.Writer == nil {
+		openhttp.WriteError(w, http.StatusServiceUnavailable, "clickhouse_unavailable", "ClickHouse not configured")
+		return
+	}
+
+	rows, err := h.Writer.Query(fmt.Sprintf(`
+		SELECT label_values[indexOf(label_names, 'host')] AS host,
+		       max(last_seen) AS last_seen,
+		       uniq(series_id) AS series_count,
+		       uniq(metric_name) AS metric_count
+		FROM opa.metric_series FINAL
+		WHERE has(label_names, 'host')%s
+		GROUP BY host
+		HAVING host != ''
+		ORDER BY host
+		LIMIT 1000`, tenantAnd(r, "")))
+	if err != nil {
+		openhttp.WriteError(w, http.StatusInternalServerError, "query_error", err.Error())
+		return
+	}
+
+	out := make([]map[string]any, 0, len(rows))
+	for _, row := range rows {
+		host := asString(row, "host")
+		lastSeen := asString(row, "last_seen")
+		out = append(out, map[string]any{
+			"host":         host,
+			"last_seen":    lastSeen,
+			"series_count": asUint64(row, "series_count"),
+			"metric_count": asUint64(row, "metric_count"),
+			"reporting":    hostIsReporting(lastSeen),
+		})
+	}
+	writeJSON(w, map[string]any{"hosts": out, "count": len(out), "source": "opa-hub"})
+}
+
+func hostIsReporting(lastSeen string) bool {
+	t, err := parseFlexibleTime(lastSeen)
+	if err != nil {
+		return false
+	}
+	return time.Since(t) < hostStaleAfter
+}
