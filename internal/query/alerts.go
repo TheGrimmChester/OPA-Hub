@@ -25,6 +25,20 @@ type Alert struct {
 	ProjectID       string         `json:"project_id"`
 }
 
+const alertTestRequestsDDL = `CREATE TABLE IF NOT EXISTS opa.alert_test_requests
+(
+    organization_id String DEFAULT '',
+    project_id      String DEFAULT '',
+    request_id      String,
+    alert_id        String,
+    requested_at    DateTime64(3) DEFAULT now64(3),
+    updated_at      DateTime64(3) DEFAULT now64(3),
+    status          String DEFAULT 'pending'
+)
+ENGINE = ReplacingMergeTree(updated_at)
+ORDER BY (organization_id, project_id, request_id)
+TTL toDateTime(requested_at) + INTERVAL 7 DAY`
+
 // ServeAlerts handles GET/POST /api/alerts.
 func (h *Handler) ServeAlerts(w http.ResponseWriter, r *http.Request) {
 	if h.Writer == nil {
@@ -147,13 +161,33 @@ func (h *Handler) ServeAlertsSubpath(w http.ResponseWriter, r *http.Request) {
 		}
 		w.WriteHeader(http.StatusNoContent)
 	case http.MethodPost:
-		// Manual check: hub persists rules; edge agent still evaluates them.
+		// Manual Test: queue for edge delivery (force-fire), then wait briefly
+		// for opa.alert_history so the dashboard Test button is synchronous when
+		// an edge leader is healthy.
 		a, err := h.getAlert(alertID, r)
 		if err != nil || a == nil {
 			openhttp.WriteError(w, http.StatusNotFound, "not_found", "alert not found")
 			return
 		}
-		writeJSON(w, map[string]any{"status": "accepted", "note": "rule persisted on hub; evaluation runs on edge agent", "source": "opa-hub"})
+		reqID, qerr := h.queueAlertTest(a)
+		if qerr != nil {
+			openhttp.WriteError(w, http.StatusInternalServerError, "query_error", qerr.Error())
+			return
+		}
+		delivery, hist := h.waitAlertTestDelivery(alertID, reqID, 12*time.Second)
+		resp := map[string]any{
+			"status":     delivery,
+			"request_id": reqID,
+			"alert_id":   alertID,
+			"source":     "opa-hub",
+		}
+		if delivery == "queued" {
+			resp["note"] = "test queued for edge agent; history will appear when the leader delivers"
+		}
+		if hist != nil {
+			resp["delivery"] = hist
+		}
+		writeJSON(w, resp)
 	default:
 		openhttp.WriteError(w, http.StatusMethodNotAllowed, "method_not_allowed", "method not allowed")
 	}
@@ -209,4 +243,57 @@ func (h *Handler) persistAlert(a *Alert) error {
 		escapeSQL(a.ConditionType), escapeSQL(string(condJSON)),
 		escapeSQL(a.ActionType), escapeSQL(string(actJSON)), escapeSQL(svc))
 	return h.Writer.Exec(sql)
+}
+
+func (h *Handler) ensureAlertTestRequestsTable() error {
+	return h.Writer.Exec(alertTestRequestsDDL)
+}
+
+// queueAlertTest inserts a pending row for the edge alert worker to force-fire.
+func (h *Handler) queueAlertTest(a *Alert) (string, error) {
+	if err := h.ensureAlertTestRequestsTable(); err != nil {
+		return "", err
+	}
+	reqID := fmt.Sprintf("test-%d", time.Now().UnixNano())
+	sql := fmt.Sprintf(`INSERT INTO opa.alert_test_requests
+		(organization_id, project_id, request_id, alert_id, requested_at, updated_at, status)
+		VALUES ('%s','%s','%s','%s', now64(3), now64(3), 'pending')`,
+		escapeSQL(a.OrganizationID), escapeSQL(a.ProjectID),
+		escapeSQL(reqID), escapeSQL(a.ID))
+	if err := h.Writer.Exec(sql); err != nil {
+		return "", err
+	}
+	return reqID, nil
+}
+
+// waitAlertTestDelivery polls opa.alert_history for a Manual test row that
+// references requestID. Returns "delivered" with the history map, or "queued".
+func (h *Handler) waitAlertTestDelivery(alertID, requestID string, timeout time.Duration) (string, map[string]any) {
+	deadline := time.Now().Add(timeout)
+	needle := "request_id=" + requestID
+	for time.Now().Before(deadline) {
+		sql := fmt.Sprintf(`SELECT alert_id, alert_name, condition_type, value, threshold, operator, action_type, status, message, fired_at
+			FROM opa.alert_history
+			WHERE alert_id = '%s' AND position(message, '%s') > 0
+			ORDER BY fired_at DESC LIMIT 1`,
+			escapeSQL(alertID), escapeSQL(needle))
+		rows, err := h.Writer.Query(sql)
+		if err == nil && len(rows) > 0 {
+			row := rows[0]
+			return "delivered", map[string]any{
+				"alert_id":       asString(row, "alert_id"),
+				"alert_name":     asString(row, "alert_name"),
+				"condition_type": asString(row, "condition_type"),
+				"value":          asFloat64(row, "value"),
+				"threshold":      asFloat64(row, "threshold"),
+				"operator":       asString(row, "operator"),
+				"action_type":    asString(row, "action_type"),
+				"status":         asString(row, "status"),
+				"message":        asString(row, "message"),
+				"fired_at":       asString(row, "fired_at"),
+			}
+		}
+		time.Sleep(400 * time.Millisecond)
+	}
+	return "queued", nil
 }
