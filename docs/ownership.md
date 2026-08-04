@@ -15,7 +15,7 @@ Open Profiling Agent uses hub-and-spoke topology with a **shared central ClickHo
 | Error inbox list / detail / status / assign | **Hub** | `opa.error_instances`, `opa.error_group_status` |
 | Anomalies list | **Hub** | `opa.anomalies` |
 | Anomaly detector / on-demand analyze | **Edge agent** | writes `opa.anomalies` |
-| Logs explorer | **Hub** | `opa.logs` (optional join to `opa.spans_min` for tenancy) |
+| Logs explorer | **Hub** | `opa.logs` (optional join to `opa.spans_min` for tenancy; always joined when auth enforced) |
 | Trace explorer list / service metadata / facets | **Hub** | `opa.spans_min` / related (`GET /api/traces`, `GET /api/services/metadata`, `GET /api/explore/facets`) |
 | SQL / Redis / HTTP / dumps / commands / stats / key-transactions | **Hub** | `opa.spans_min`, `opa.spans_full`, `opa.key_transactions`, `system.parts` |
 | Metrics host inventory (`GET /api/infra/hosts`) | **Hub** | `opa.metric_series` |

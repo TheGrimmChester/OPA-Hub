@@ -84,10 +84,23 @@ func (h *Handler) ServeLogin(w http.ResponseWriter, r *http.Request) {
 }
 
 // ServeRegister handles POST /api/auth/register.
+// Self-registration is capped to viewer. Elevating role requires an admin JWT.
+// When AuthRequired is true, registration itself requires an admin JWT.
 func (h *Handler) ServeRegister(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		openhttp.WriteError(w, http.StatusMethodNotAllowed, "method_not_allowed", "POST required")
 		return
+	}
+	caller, callerOK := h.claimsFromRequest(r)
+	if h.AuthRequired {
+		if !callerOK {
+			openhttp.WriteError(w, http.StatusUnauthorized, "unauthorized", "authentication required")
+			return
+		}
+		if !openauth.HasPermission(caller.Role, "admin") {
+			openhttp.WriteError(w, http.StatusForbidden, "forbidden", "admin required to register users")
+			return
+		}
 	}
 	var body struct {
 		Username string `json:"username"`
@@ -99,17 +112,21 @@ func (h *Handler) ServeRegister(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	body.Username = strings.TrimSpace(body.Username)
-	if err := h.local.Register(body.Username, body.Password, body.Role); err != nil {
+	role := strings.TrimSpace(body.Role)
+	if role == "" {
+		role = "viewer"
+	}
+	// Only an authenticated admin may mint editor/admin accounts.
+	if role != "viewer" && !(callerOK && openauth.HasPermission(caller.Role, "admin")) {
+		role = "viewer"
+	}
+	if err := h.local.Register(body.Username, body.Password, role); err != nil {
 		if body.Username == "" || len(body.Password) < 8 {
 			openhttp.WriteError(w, http.StatusBadRequest, "bad_request", "username and password (>=8) required")
 			return
 		}
 		openhttp.WriteError(w, http.StatusConflict, "conflict", "username already registered")
 		return
-	}
-	role := body.Role
-	if role == "" {
-		role = "viewer"
 	}
 	writeJSON(w, map[string]any{
 		"ok":   true,

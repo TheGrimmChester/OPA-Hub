@@ -8,6 +8,7 @@ import (
 	"time"
 
 	openhttp "github.com/TheGrimmChester/open-http-go"
+	opentenant "github.com/TheGrimmChester/open-tenant-go"
 )
 
 // SyntheticCheck matches the edge agent / dashboard shape and opa.synthetic_checks.
@@ -140,8 +141,10 @@ func (h *Handler) ServeSyntheticsSubpath(w http.ResponseWriter, r *http.Request)
 		}
 		writeJSON(w, body)
 	case http.MethodDelete:
+		owned := opentenant.FromRequest(r).OwnedRowPredicate("")
 		if err := h.Writer.Exec(fmt.Sprintf(
-			"ALTER TABLE opa.synthetic_checks DELETE WHERE id = '%s'", escapeSQL(checkID))); err != nil {
+			"ALTER TABLE opa.synthetic_checks DELETE WHERE id = '%s' AND %s",
+			escapeSQL(checkID), owned)); err != nil {
 			openhttp.WriteError(w, http.StatusInternalServerError, "query_error", err.Error())
 			return
 		}
