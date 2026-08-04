@@ -36,7 +36,18 @@ func safeInterval(raw string) string {
 }
 
 func parseFlexibleTime(s string) (time.Time, error) {
-	for _, layout := range []string{time.RFC3339, "2006-01-02 15:04:05", "2006-01-02"} {
+	s = strings.TrimSpace(s)
+	for _, layout := range []string{
+		time.RFC3339Nano,
+		time.RFC3339,
+		"2006-01-02T15:04:05.000Z07:00",
+		"2006-01-02T15:04:05Z07:00",
+		"2006-01-02T15:04:05.000",
+		"2006-01-02T15:04:05",
+		"2006-01-02 15:04:05.000",
+		"2006-01-02 15:04:05",
+		"2006-01-02",
+	} {
 		if t, err := time.Parse(layout, s); err == nil {
 			return t.UTC(), nil
 		}
