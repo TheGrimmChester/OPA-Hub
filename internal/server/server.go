@@ -17,7 +17,7 @@ import (
 	"github.com/TheGrimmChester/opa-hub/internal/store"
 )
 
-const version = "0.6.0"
+const version = "0.7.0"
 
 // Server is the opa-hub HTTP control plane.
 type Server struct {
@@ -106,14 +106,19 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("/api/alerts/", authH.Middleware(queryH.ServeAlertsSubpath))
 	s.mux.HandleFunc("/api/alerts", authH.Middleware(queryH.ServeAlerts))
 
-	// RUM (browser sessions / vitals / detail)
+	// RUM (browser sessions / vitals / detail / replay reads)
 	s.mux.HandleFunc("/api/rum/metrics", authH.Middleware(queryH.ServeRUMMetrics))
 	s.mux.HandleFunc("/api/rum/detail", authH.Middleware(queryH.ServeRUMDetail))
 	s.mux.HandleFunc("/api/rum/slo", authH.Middleware(queryH.ServeRUMSLO))
 	s.mux.HandleFunc("/api/rum/facets", authH.Middleware(queryH.ServeRUMFacets))
 	s.mux.HandleFunc("/api/rum/vitals/attribution", authH.Middleware(queryH.ServeRUMVitalsAttribution))
+	s.mux.HandleFunc("/api/rum/replay-timeline/", authH.Middleware(queryH.ServeRUMReplayTimeline))
+	s.mux.HandleFunc("/api/rum/replay/", authH.Middleware(queryH.ServeRUMReplay))
+	s.mux.HandleFunc("/api/rum/mobile/sessions", authH.Middleware(queryH.ServeRUMMobileSessions))
 	s.mux.HandleFunc("/api/rum/sessions/", authH.Middleware(queryH.ServeRUMSessionsSubpath))
 	s.mux.HandleFunc("/api/rum/sessions", authH.Middleware(queryH.ServeRUMSessions))
+	// Mobile crash reads (POST ingest stays on edge agent)
+	s.mux.HandleFunc("/api/mobile/crashes", authH.Middleware(queryH.ServeMobileCrashes))
 
 	// Profiling + errors (list/detail + group status/assign mutations)
 	s.mux.HandleFunc("/api/profiles/flame", authH.Middleware(queryH.ServeProfilesFlame))

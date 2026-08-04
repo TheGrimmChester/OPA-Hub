@@ -7,7 +7,7 @@ Health `service` id: `opa-hub`.
 `GET /api/health`
 
 ```json
-{"status":"ok","service":"opa-hub","version":"0.6.0","agents":0,"clickhouse":true,"topology":"hub-spoke"}
+{"status":"ok","service":"opa-hub","version":"0.7.0","agents":0,"clickhouse":true,"topology":"hub-spoke"}
 ```
 
 ## Agent registry
@@ -91,6 +91,14 @@ When `OPA_AUTH_REQUIRED=1`, these routes require `Authorization: Bearer <user JW
 | `GET` | `/api/rum/metrics` | RUM aggregates + Core Web Vitals |
 | `GET` | `/api/rum/sessions` | Browser session list |
 | `GET` | `/api/rum/sessions/{id}` | Session timeline (page views / ajax / errors) |
+| `GET` | `/api/rum/detail` | Resource / AJAX / page-view aggregates |
+| `GET` | `/api/rum/slo` | CWV p75 budgets + rating histograms |
+| `GET` | `/api/rum/facets` | Route / geo facet chips |
+| `GET` | `/api/rum/vitals/attribution` | CWV attribution by route |
+| `GET` | `/api/rum/replay/{id}` | Masked session-replay chunks (`opa.rum_replay_chunks`) |
+| `GET` | `/api/rum/replay-timeline/{id}` | Flattened scrubber events for SessionReplayPlayer |
+| `GET` | `/api/rum/mobile/sessions` | Distinct mobile crash sessions |
+| `GET` | `/api/mobile/crashes` | Mobile crash list (optional `session_id` / `platform`) |
 | `GET` | `/api/profiles` | Aggregated profiling top functions |
 | `GET` | `/api/errors` | Errors inbox group list |
 | `GET` | `/api/errors/{id}` | Error group detail |
@@ -114,7 +122,7 @@ Alert **evaluation** (periodic condition checks and notification delivery) still
 
 SLO **evaluation** still runs on the edge agent and writes `opa.slo_metrics`; hub owns SLO CRUD and compliance reads from the same tables.
 
-RUM **ingest** (`POST /api/rum`) and synthetic **probe scheduling** remain on the edge agent. Synthetic check definitions and result reads are hub-owned; the agent writes probe outcomes into the same `opa.synthetic_results` table.
+RUM **ingest** (`POST /api/rum`, `POST /api/rum/replay`) and mobile crash **ingest** (`POST /api/mobile/crashes`) remain on the edge agent. Synthetic **probe scheduling** also remains on the edge; check definitions and result reads are hub-owned, and the agent writes probe outcomes into the same `opa.synthetic_results` table.
 
 ### Services response (shape)
 
@@ -149,4 +157,4 @@ RUM **ingest** (`POST /api/rum`) and synthetic **probe scheduling** remain on th
 
 Hub owns identity (user JWTs) and a lightweight org directory. GitHub credentials stay in ORA connectors; OPM calls both peers.
 
-Remaining edge-owned workers include RUM ingest/replay deep APIs, synthetic probe workers, alert evaluation/delivery, SLO evaluation, and anomaly detection/analyze.
+Remaining edge-owned workers include RUM/mobile crash ingest, synthetic probe workers, alert evaluation/delivery, SLO evaluation, and anomaly detection/analyze.
