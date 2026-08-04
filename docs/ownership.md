@@ -61,11 +61,10 @@ These pages call hub URLs today but **no backend exists** on hub or edge (NAS `1
 | Service catalog | `Catalog.jsx` | `GET /api/catalog`, `/scorecards`, `/teams`, `/groups`, `/entities/{id}`, `POST /api/catalog/discover`, `/apply`, `/teams/upsert` | No | No | **Deferred** — UI scaffold only |
 | Declarative mgmt (GitOps) | `Automation.jsx` | `GET /api/mgmt/v1`, `/revisions`, `/export`, `/openapi.json`, `POST /api/mgmt/v1/{plan,apply,import,promote}` | No | No | **Deferred** — UI scaffold only |
 | Call-graph window compare | `CompareTraces.jsx` → `CallgraphWindowCompare.jsx` | `GET /api/callgraph/compare` | No | No | **Deferred** — UI scaffold only (`opa.callgraph_agg` table exists; no compare handler yet) |
-| Trace explore facets | `TraceExplorer.jsx` → `FacetSidebar.jsx` | `GET /api/explore/facets` | No (removed; was Wave 14) | Yes | **Hub-owned** — restored from agent Wave 14 against `opa.spans_min` / signal tables |
 
 **Edge-only, dashboard not wired:** `GET /api/filter-suggestions/{keys,values}` — agent returns **200** on NAS edge `:18081`; hub correctly returns **404**. Stay on edge until a dashboard surface calls it; then proxy or re-implement on hub against the same ClickHouse queries.
 
-**Trace Explorer (batch 5 follow-up):** Core list surfaces and explore facets are hub-owned. `GET /api/explore/facets` was restored on hub from agent Wave 14 `handleExploreFacets` (GROUP BY allowlisted columns on `opa.spans_min` / signal tables). Edge remains **404** for this path by design.
+**Trace Explorer facets (hub-owned, not deferred):** `GET /api/explore/facets` is on **opa-hub** as of [OPA-Hub #20](https://github.com/TheGrimmChester/OPA-Hub/pull/20) / **v0.7.3** (Wave 14 agent query restored against `opa.spans_min` / signal tables). NAS hub `:18080` returns **200** (JWT); edge `:18081` remains **404** by design. Do not list this route as deferred.
 
 ## Hub migration history (batches 2–5)
 
@@ -86,7 +85,7 @@ These pages call hub URLs today but **no backend exists** on hub or edge (NAS `1
 | `GET /api/network/*`, `GET /api/cloud/*`, `GET /api/catalog*`, `GET /api/mgmt/v1*` | Yes | No | **Deferred** (batch 4) — no backend yet |
 | `GET /api/callgraph/compare` | Yes (`CallgraphWindowCompare.jsx`) | No | **Deferred** (batch 4) — implement compare handler first |
 | `GET /api/traces`, `GET /api/services/metadata` | Yes (`TraceExplorer.jsx`) | Yes (legacy) | **Already hub-owned** (batch 5) — NAS hub **200** |
-| `GET /api/explore/facets` | Yes (`FacetSidebar.jsx`) | No (removed; was Wave 14) | **Hub-owned** — restored from Wave 14 CH query |
+| `GET /api/explore/facets` | Yes (`FacetSidebar.jsx`) | No (removed; was Wave 14) | **Hub-owned** ([#20](https://github.com/TheGrimmChester/OPA-Hub/pull/20), v0.7.3) — NAS hub **200** |
 
 ## Related docs
 
