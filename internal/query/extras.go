@@ -156,20 +156,60 @@ func (h *Handler) ServeErrors(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, map[string]any{"errors": errors, "count": len(errors), "source": "opa-hub"})
 }
 
-// ServeErrorsSubpath handles GET /api/errors/{group_id} — error detail (read-only).
-// Status/assign mutations remain on the edge agent.
+// ServeErrorsSubpath handles:
+//   GET  /api/errors/{group_id} — error detail
+//   POST /api/errors/groups/{group_id}/status|assign — persist to opa.error_group_status
 func (h *Handler) ServeErrorsSubpath(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		openhttp.WriteError(w, http.StatusMethodNotAllowed, "method_not_allowed", "GET required")
-		return
-	}
 	if h.Writer == nil {
 		openhttp.WriteError(w, http.StatusServiceUnavailable, "clickhouse_unavailable", "ClickHouse not configured")
 		return
 	}
-	groupID := strings.TrimPrefix(r.URL.Path, "/api/errors/")
-	groupID = strings.Trim(groupID, "/")
-	if groupID == "" || strings.HasPrefix(groupID, "groups/") {
+	rest := strings.Trim(strings.TrimPrefix(r.URL.Path, "/api/errors/"), "/")
+	if rest == "" {
+		openhttp.WriteError(w, http.StatusBadRequest, "bad_request", "error id required")
+		return
+	}
+
+	// Mutations: /api/errors/groups/{group_id}/{status|assign}
+	if strings.HasPrefix(rest, "groups/") {
+		if r.Method != http.MethodPost {
+			openhttp.WriteError(w, http.StatusMethodNotAllowed, "method_not_allowed", "POST required")
+			return
+		}
+		parts := strings.Split(rest, "/")
+		// groups / {id} / {action}
+		if len(parts) < 3 || parts[1] == "" {
+			openhttp.WriteError(w, http.StatusBadRequest, "bad_request", "group id and action required")
+			return
+		}
+		groupID := parts[1]
+		action := parts[2]
+		var body struct {
+			Status     string  `json:"status"`
+			AssignedTo *string `json:"assigned_to"`
+		}
+		_ = json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<20)).Decode(&body)
+		switch action {
+		case "status":
+			if body.Status != "unresolved" && body.Status != "resolved" && body.Status != "ignored" {
+				openhttp.WriteError(w, http.StatusBadRequest, "bad_request", "invalid status")
+				return
+			}
+			h.writeErrorGroupStatus(w, r, groupID, body.Status, nil)
+		case "assign":
+			h.writeErrorGroupStatus(w, r, groupID, "", body.AssignedTo)
+		default:
+			openhttp.WriteError(w, http.StatusBadRequest, "bad_request", "unknown action")
+		}
+		return
+	}
+
+	if r.Method != http.MethodGet {
+		openhttp.WriteError(w, http.StatusMethodNotAllowed, "method_not_allowed", "GET required")
+		return
+	}
+	groupID := rest
+	if strings.Contains(groupID, "/") {
 		openhttp.WriteError(w, http.StatusBadRequest, "bad_request", "error id required")
 		return
 	}
@@ -255,4 +295,38 @@ func (h *Handler) ServeErrorsSubpath(w http.ResponseWriter, r *http.Request) {
 		"trends":         trends,
 		"source":         "opa-hub",
 	})
+}
+
+// writeErrorGroupStatus inserts into opa.error_group_status (ReplacingMergeTree).
+func (h *Handler) writeErrorGroupStatus(w http.ResponseWriter, r *http.Request, groupID, status string, assignedTo *string) {
+	org, proj := writeOrgProject(r)
+	assignVal := "NULL"
+	if assignedTo != nil {
+		assignVal = fmt.Sprintf("'%s'", escapeSQL(*assignedTo))
+	}
+	curStatus, curAssign := "unresolved", "NULL"
+	seedSQL := fmt.Sprintf(`SELECT status, assigned_to FROM opa.error_group_status FINAL
+		WHERE group_id = '%s'%s LIMIT 1`, escapeSQL(groupID), tenantAnd(r, ""))
+	if sr, _ := h.Writer.Query(seedSQL); len(sr) > 0 {
+		if s := asString(sr[0], "status"); s != "" {
+			curStatus = s
+		}
+		if a := asString(sr[0], "assigned_to"); a != "" {
+			curAssign = fmt.Sprintf("'%s'", escapeSQL(a))
+		}
+	}
+	if status == "" {
+		status = curStatus
+	}
+	if assignedTo == nil {
+		assignVal = curAssign
+	}
+	sql := fmt.Sprintf(`INSERT INTO opa.error_group_status (organization_id, project_id, group_id, status, assigned_to, updated_at)
+		VALUES ('%s','%s','%s','%s',%s, now64(3))`,
+		escapeSQL(org), escapeSQL(proj), escapeSQL(groupID), escapeSQL(status), assignVal)
+	if err := h.Writer.Exec(sql); err != nil {
+		openhttp.WriteError(w, http.StatusInternalServerError, "query_error", err.Error())
+		return
+	}
+	writeJSON(w, map[string]any{"group_id": groupID, "status": status, "source": "opa-hub"})
 }
