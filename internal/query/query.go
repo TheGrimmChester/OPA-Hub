@@ -19,10 +19,11 @@ import (
 // It reads the central ClickHouse `opa` database — edge agents are not queried
 // for routine UI paths.
 type Handler struct {
-	Reg       *registry.Registry
-	Writer    *store.Writer
-	StartedAt time.Time
-	Version   string
+	Reg                 *registry.Registry
+	Writer              *store.Writer
+	StartedAt           time.Time
+	Version             string
+	EnrollTokenRequired bool
 }
 
 // ServeQueryRoot handles GET /api/query — capability advertisement for the UI.
@@ -85,6 +86,14 @@ func (h *Handler) ServeQueryRoot(w http.ResponseWriter, r *http.Request) {
 			"key_transactions",
 			"infra_hosts",
 			"transactions_compare",
+			"version",
+			"topology",
+			"ops_status",
+			"audit",
+			"db_instances",
+			"db_statements",
+			"db_fingerprint_match",
+			"db_unused_indexes",
 		},
 		"source": "clickhouse",
 		"database": func() string {
