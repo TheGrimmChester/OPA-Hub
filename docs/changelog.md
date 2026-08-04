@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.4.1
+
+- Synthetics list health fields aligned with the edge agent / dashboard (`uptime_24h`, `avg_latency_ms_24h`, `last_ok`, `last_run`, `last_error`).
+- Hub owns synthetics CRUD and results read against `opa.synthetic_checks` / `opa.synthetic_results`; edge agent continues to run probes.
+- Documented hub vs edge ownership for writers and workers (`docs/ownership.md`).
+
 ## 0.4.0
 
 - Hub owns additional dashboard query surfaces against central ClickHouse `opa`:

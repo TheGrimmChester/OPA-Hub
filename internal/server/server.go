@@ -17,7 +17,7 @@ import (
 	"github.com/TheGrimmChester/opa-hub/internal/store"
 )
 
-const version = "0.4.0"
+const version = "0.4.1"
 
 // Server is the opa-hub HTTP control plane.
 type Server struct {
@@ -114,7 +114,9 @@ func (s *Server) routes() {
 	// Bonus surfaces used by the dashboard
 	s.mux.HandleFunc("/api/profiles", authH.Middleware(queryH.ServeProfiles))
 	s.mux.HandleFunc("/api/errors", authH.Middleware(queryH.ServeErrors))
+	// Synthetics: hub owns list/CRUD/results against CH; edge agent runs probes
 	s.mux.HandleFunc("/api/synthetics/locations", authH.Middleware(queryH.ServeSyntheticsLocations))
+	s.mux.HandleFunc("/api/synthetics/", authH.Middleware(queryH.ServeSyntheticsSubpath))
 	s.mux.HandleFunc("/api/synthetics", authH.Middleware(queryH.ServeSynthetics))
 
 	s.registerTenancyAndPeerRoutes()
