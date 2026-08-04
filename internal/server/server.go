@@ -17,7 +17,7 @@ import (
 	"github.com/TheGrimmChester/opa-hub/internal/store"
 )
 
-const version = "0.5.0"
+const version = "0.6.0"
 
 // Server is the opa-hub HTTP control plane.
 type Server struct {
@@ -115,7 +115,7 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("/api/rum/sessions/", authH.Middleware(queryH.ServeRUMSessionsSubpath))
 	s.mux.HandleFunc("/api/rum/sessions", authH.Middleware(queryH.ServeRUMSessions))
 
-	// Profiling + errors (detail reads; mutations stay on edge agent)
+	// Profiling + errors (list/detail + group status/assign mutations)
 	s.mux.HandleFunc("/api/profiles/flame", authH.Middleware(queryH.ServeProfilesFlame))
 	s.mux.HandleFunc("/api/profiles", authH.Middleware(queryH.ServeProfiles))
 	s.mux.HandleFunc("/api/errors/", authH.Middleware(queryH.ServeErrorsSubpath))
@@ -124,6 +124,16 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("/api/synthetics/locations", authH.Middleware(queryH.ServeSyntheticsLocations))
 	s.mux.HandleFunc("/api/synthetics/", authH.Middleware(queryH.ServeSyntheticsSubpath))
 	s.mux.HandleFunc("/api/synthetics", authH.Middleware(queryH.ServeSynthetics))
+
+	// SLOs (CRUD + compliance reads; evaluation remains on edge agent)
+	s.mux.HandleFunc("/api/slos/", authH.Middleware(queryH.ServeSLOsSubpath))
+	s.mux.HandleFunc("/api/slos", authH.Middleware(queryH.ServeSLOs))
+
+	// Anomalies list (detector/analyze remain on edge agent)
+	s.mux.HandleFunc("/api/anomalies", authH.Middleware(queryH.ServeAnomalies))
+
+	// Logs explorer (main nav)
+	s.mux.HandleFunc("/api/logs", authH.Middleware(queryH.ServeLogs))
 
 	s.registerTenancyAndPeerRoutes()
 }

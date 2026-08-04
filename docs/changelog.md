@@ -1,10 +1,17 @@
 # Changelog
 
+## 0.6.0
+
+- Hub owns SLO list/CRUD and compliance reads: `/api/slos`, `/api/slos/{id}`, `/api/slos/{id}/compliance` (`opa.slos`, `opa.slo_metrics`). Edge agent continues periodic SLO evaluation into the same metrics table.
+- Error inbox mutations on hub: `POST /api/errors/groups/{id}/status` and `/assign` write `opa.error_group_status`.
+- Anomalies list: `GET /api/anomalies` from `opa.anomalies` (detector and `/analyze` remain on the edge agent).
+- Logs explorer: `GET /api/logs` for the dashboard main-nav surface.
+
 ## 0.5.0
 
 - Hub owns additional RUM read surfaces: `/api/rum/detail`, `/api/rum/slo`, `/api/rum/facets`, `/api/rum/vitals/attribution`.
 - Profile flame graph: `/api/profiles/flame` from `opa.profile_edges`.
-- Error detail read: `/api/errors/{id}` (status/assign mutations remain on the edge agent).
+- Error detail read: `/api/errors/{id}`.
 - Trace log correlation: `/api/traces/{id}/logs` from `opa.logs`.
 - Service map includes external dependency edges (database, HTTP, Redis, cache) from `opa.spans_full`.
 
