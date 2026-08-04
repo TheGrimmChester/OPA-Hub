@@ -16,6 +16,7 @@ Open Profiling Agent uses hub-and-spoke topology with a **shared central ClickHo
 | Anomalies list | **Hub** | `opa.anomalies` |
 | Anomaly detector / on-demand analyze | **Edge agent** | writes `opa.anomalies` |
 | Logs explorer | **Hub** | `opa.logs` (optional join to `opa.spans_min` for tenancy) |
+| Trace explorer list / service metadata | **Hub** | `opa.spans_min` / related (`GET /api/traces`, `GET /api/services/metadata`) |
 | SQL / Redis / HTTP / dumps / commands / stats / key-transactions | **Hub** | `opa.spans_min`, `opa.spans_full`, `opa.key_transactions`, `system.parts` |
 | Metrics host inventory (`GET /api/infra/hosts`) | **Hub** | `opa.metric_series` |
 | Cohort transaction compare (`GET /api/transactions/compare`) | **Hub** | `opa.spans_min` (entry spans) |
@@ -60,10 +61,13 @@ These pages call hub URLs today but **no backend exists** on hub or edge (NAS `1
 | Service catalog | `Catalog.jsx` | `GET /api/catalog`, `/scorecards`, `/teams`, `/groups`, `/entities/{id}`, `POST /api/catalog/discover`, `/apply`, `/teams/upsert` | No | No | **Deferred** — UI scaffold only |
 | Declarative mgmt (GitOps) | `Automation.jsx` | `GET /api/mgmt/v1`, `/revisions`, `/export`, `/openapi.json`, `POST /api/mgmt/v1/{plan,apply,import,promote}` | No | No | **Deferred** — UI scaffold only |
 | Call-graph window compare | `CompareTraces.jsx` → `CallgraphWindowCompare.jsx` | `GET /api/callgraph/compare` | No | No | **Deferred** — UI scaffold only (`opa.callgraph_agg` table exists; no compare handler yet) |
+| Trace explore facets | `TraceExplorer.jsx` → `FacetSidebar.jsx` | `GET /api/explore/facets` | No (removed; was Wave 14) | No | **Deferred** — UI calls it; FacetSidebar swallows errors (empty chips). Re-implement on hub against signal tables (`opa.spans_min`, etc.), then mark hub-owned |
 
 **Edge-only, dashboard not wired:** `GET /api/filter-suggestions/{keys,values}` — agent returns **200** on NAS edge `:18081`; hub correctly returns **404**. Stay on edge until a dashboard surface calls it; then proxy or re-implement on hub against the same ClickHouse queries.
 
-## Hub migration history (batches 2–4)
+**Trace Explorer (batch 5 audit):** Core list surfaces are already hub-owned — NAS hub `:18080` returns **200** for `GET /api/traces` and `GET /api/services/metadata`. `GET /api/explore/facets` returns **404** on both hub `:18080` and edge `:18081` (Wave 14 `handleExploreFacets` lived in agent `wave14_dashboards.go` and is gone from agent `main`). No port — nothing live on the edge to move. Do not add a hub stub until the ClickHouse facet query is restored.
+
+## Hub migration history (batches 2–5)
 
 | Route / surface | Dashboard calls? | Agent backend? | Decision |
 |-----------------|------------------|----------------|----------|
@@ -81,6 +85,8 @@ These pages call hub URLs today but **no backend exists** on hub or edge (NAS `1
 | `GET /api/db/statements/{fp}` | No | Yes (wave17) | Skip — dashboard navigates via `/sql/{fp}` instead |
 | `GET /api/network/*`, `GET /api/cloud/*`, `GET /api/catalog*`, `GET /api/mgmt/v1*` | Yes | No | **Deferred** (batch 4) — no backend yet |
 | `GET /api/callgraph/compare` | Yes (`CallgraphWindowCompare.jsx`) | No | **Deferred** (batch 4) — implement compare handler first |
+| `GET /api/traces`, `GET /api/services/metadata` | Yes (`TraceExplorer.jsx`) | Yes (legacy) | **Already hub-owned** (batch 5) — NAS hub **200** |
+| `GET /api/explore/facets` | Yes (`FacetSidebar.jsx`) | No (removed; was Wave 14) | **Deferred** (batch 5) — hub + edge **404**; restore on hub before ownership move |
 
 ## Related docs
 
