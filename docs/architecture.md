@@ -27,10 +27,12 @@ flowchart TB
 
 | Component | Image / binary | Responsibility |
 |-----------|----------------|----------------|
-| Edge agent | `opa-agent` | Local ingest; register + push to hub |
-| Hub | `opa-hub` | Agent registry, ingest accept, query/admin API, auth issuer, central ClickHouse writes |
+| Edge agent | `opa-agent` | Local ingest; register + push; alert evaluation; synthetics probes; RUM ingest |
+| Hub | `opa-hub` | Agent registry, ingest accept, query/admin API, auth issuer, alert + synthetics CRUD, central ClickHouse writes |
 | Dashboard | `opa-dashboard` | Single UI URL → hub only |
 | Storage | ClickHouse | Central telemetry store (via [Open-ClickHouse-Go](https://github.com/TheGrimmChester/Open-ClickHouse-Go)) |
+
+See [ownership.md](ownership.md) for the hub vs edge writer/worker split.
 
 ## Traffic direction
 
