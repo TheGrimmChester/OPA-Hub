@@ -7,6 +7,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	opentenant "github.com/TheGrimmChester/open-tenant-go"
 )
 
 // safeInterval maps a caller bucket token to a whitelisted ClickHouse INTERVAL.
@@ -130,15 +132,7 @@ func serviceMapTimeBound(raw, fallback string) string {
 }
 
 func writeOrgProject(r *http.Request) (org, proj string) {
-	org = strings.TrimSpace(r.Header.Get("X-Organization-ID"))
-	proj = strings.TrimSpace(r.Header.Get("X-Project-ID"))
-	if org == "" || strings.EqualFold(org, "all") {
-		org = "default-org"
-	}
-	if proj == "" || strings.EqualFold(proj, "all") {
-		proj = "default-project"
-	}
-	return org, proj
+	return opentenant.FromRequest(r).WriteTenant()
 }
 
 func invalidServiceName(s string) bool {
@@ -210,9 +204,5 @@ func cwvRating(metric string, v float64) string {
 }
 
 func tenantAnd(r *http.Request, alias string) string {
-	tw := tenantWhere(r, alias)
-	if tw == "1=1" {
-		return ""
-	}
-	return " AND " + strings.TrimPrefix(tw, "1=1 AND ")
+	return opentenant.FromRequest(r).ScopeAnd(alias)
 }

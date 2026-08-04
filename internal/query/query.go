@@ -9,6 +9,7 @@ import (
 	"time"
 
 	openhttp "github.com/TheGrimmChester/open-http-go"
+	opentenant "github.com/TheGrimmChester/open-tenant-go"
 
 	"github.com/TheGrimmChester/opa-hub/internal/registry"
 	"github.com/TheGrimmChester/opa-hub/internal/store"
@@ -210,20 +211,7 @@ func parseLimitOffset(r *http.Request, defLimit, maxLimit int) (limit, offset in
 }
 
 func tenantWhere(r *http.Request, alias string) string {
-	org := strings.TrimSpace(r.Header.Get("X-Organization-ID"))
-	proj := strings.TrimSpace(r.Header.Get("X-Project-ID"))
-	prefix := ""
-	if alias != "" {
-		prefix = alias
-	}
-	parts := []string{"1=1"}
-	if org != "" && !strings.EqualFold(org, "all") {
-		parts = append(parts, fmt.Sprintf("%sorganization_id = '%s'", prefix, escapeSQL(org)))
-	}
-	if proj != "" && !strings.EqualFold(proj, "all") {
-		parts = append(parts, fmt.Sprintf("%sproject_id = '%s'", prefix, escapeSQL(proj)))
-	}
-	return strings.Join(parts, " AND ")
+	return opentenant.FromRequest(r).ScopeBool(alias)
 }
 
 func safeTimeLiteral(s string) string {
