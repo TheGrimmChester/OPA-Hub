@@ -17,7 +17,7 @@ import (
 	"github.com/TheGrimmChester/opa-hub/internal/store"
 )
 
-const version = "0.7.4"
+	const version = "0.7.5"
 
 // Server is the opa-hub HTTP control plane.
 type Server struct {
@@ -166,6 +166,13 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("/api/db/statements", authH.Middleware(queryH.ServeDBStatements))
 	s.mux.HandleFunc("/api/db/fingerprint-match", authH.Middleware(queryH.ServeDBFingerprintMatch))
 	s.mux.HandleFunc("/api/db/unused-indexes", authH.Middleware(queryH.ServeDBUnusedIndexes))
+
+	// Deep diagnostics (Diagnostics page) — reads + release markers; heap/thread/lock ingest stays on edge
+	s.mux.HandleFunc("/api/releases", authH.Middleware(queryH.ServeReleases))
+	s.mux.HandleFunc("/api/diagnostics/suspect-commits", authH.Middleware(queryH.ServeSuspectCommits))
+	s.mux.HandleFunc("/api/diagnostics/heap", authH.Middleware(queryH.ServeHeapDiagnostics))
+	s.mux.HandleFunc("/api/diagnostics/threads", authH.Middleware(queryH.ServeThreadDiagnostics))
+	s.mux.HandleFunc("/api/diagnostics/locks", authH.Middleware(queryH.ServeLockDiagnostics))
 
 	s.registerTenancyAndPeerRoutes()
 }

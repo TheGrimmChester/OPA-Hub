@@ -30,6 +30,8 @@ Open Profiling Agent uses hub-and-spoke topology with a **shared central ClickHo
 | RUM metrics / sessions / detail / replay reads | **Hub** | same RUM tables |
 | Mobile crash ingest (`POST /api/mobile/crashes`) | **Edge agent** | `opa.mobile_crashes` |
 | Mobile crash / session reads | **Hub** | `opa.mobile_crashes` |
+| Diagnostics reads + release markers | **Hub** | `opa.release_markers`, `opa.heap_snapshots`, `opa.thread_samples`, `opa.lock_contention` (+ `opa.spans_min` for suspect scoring) |
+| Heap / thread / lock ingest (`POST /v1/heap`, `/v1/threads`, `/v1/locks`) | **Edge agent** | same diagnostics tables |
 
 ## Coherence rules
 
@@ -49,6 +51,7 @@ These surfaces remain edge-owned workers or deep APIs; move them only with an ex
 - Anomaly detector scheduler and `POST /api/anomalies/analyze`
 - Filter suggestions (`GET /api/filter-suggestions/*`) — **edge agent only** (keys are static; values query ClickHouse). Dashboard does not call these paths today; do not add hub stubs.
 - DB monitor scrape targets admin (`GET/POST /api/db/targets`) — edge-only config surface; dashboard does not call it
+- Heap / thread / lock sample ingest (`POST /v1/heap`, `/v1/threads`, `/v1/locks` and `/api/diagnostics/*/ingest`) — dashboard reads are hub-owned
 
 ## Unimplemented dashboard scaffolds (batch 4 audit)
 
@@ -106,6 +109,7 @@ Dashboard Trace Explorer should prefer `service` / `language` / `framework` / `s
 | `GET /api/callgraph/compare` | Yes (`CallgraphWindowCompare.jsx`) | No | **Deferred** (batch 4) — implement compare handler first |
 | `GET /api/traces`, `GET /api/services/metadata` | Yes (`TraceExplorer.jsx`) | Yes (legacy) | **Already hub-owned** (batch 5) — NAS hub **200** |
 | `GET /api/explore/facets` | Yes (`FacetSidebar.jsx`) | No (removed; was Wave 14) | **Hub-owned** ([#20](https://github.com/TheGrimmChester/OPA-Hub/pull/20), v0.7.3) — NAS hub **200** |
+| `GET/POST /api/releases`, `GET /api/diagnostics/{suspect-commits,heap,threads,locks}` | Yes (`Diagnostics.jsx`) | Yes (agent wave27 branch; not on NAS edge main) | **Hub-owned** (batch 6) — hub ensures CH tables; edge keeps `/v1/{heap,threads,locks}` ingest |
 
 ## Related docs
 
