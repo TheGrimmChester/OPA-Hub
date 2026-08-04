@@ -17,6 +17,12 @@ const userClaimsKey ctxKey = 1
 // AuthRequired is true. Public auth/health/ingest/agent enroll paths should
 // not use this wrapper.
 func (h *Handler) Middleware(next http.HandlerFunc) http.HandlerFunc {
+	return h.Require("viewer", next)
+}
+
+// Require enforces a user JWT with at least requiredRole (viewer < editor < admin)
+// when AuthRequired is true. Empty requiredRole accepts any authenticated user.
+func (h *Handler) Require(requiredRole string, next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if !h.AuthRequired {
 			next(w, r)
@@ -25,6 +31,50 @@ func (h *Handler) Middleware(next http.HandlerFunc) http.HandlerFunc {
 		claims, ok := h.claimsFromRequest(r)
 		if !ok {
 			openhttp.WriteError(w, http.StatusUnauthorized, "unauthorized", "authentication required")
+			return
+		}
+		if requiredRole != "" && !openauth.HasPermission(claims.Role, requiredRole) {
+			openhttp.WriteError(w, http.StatusForbidden, "forbidden", "insufficient role")
+			return
+		}
+		ctx := context.WithValue(r.Context(), userClaimsKey, claims)
+		next(w, r.WithContext(ctx))
+	}
+}
+
+// RequireUserOrService accepts a viewer+ user JWT or a service JWT for aud=opa-hub
+// with requiredServiceScope. Used for tenancy discovery called by peers and dashboards.
+func (h *Handler) RequireUserOrService(requiredRole, requiredServiceScope string, next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if !h.AuthRequired {
+			next(w, r)
+			return
+		}
+		authHeader := r.Header.Get("Authorization")
+		if !strings.HasPrefix(strings.ToLower(authHeader), "bearer ") {
+			openhttp.WriteError(w, http.StatusUnauthorized, "unauthorized", "authentication required")
+			return
+		}
+		tok := strings.TrimSpace(authHeader[7:])
+		if len(h.ServiceSecret) > 0 {
+			if sc, err := openauth.ValidateServiceJWT(tok, h.ServiceSecret, "opa-hub"); err == nil {
+				if requiredServiceScope != "" {
+					if err := openauth.RequireScope(sc, requiredServiceScope); err != nil {
+						openhttp.WriteError(w, http.StatusForbidden, "forbidden", "missing scope")
+						return
+					}
+				}
+				next(w, r)
+				return
+			}
+		}
+		claims, err := h.parseToken(tok)
+		if err != nil || claims == nil {
+			openhttp.WriteError(w, http.StatusUnauthorized, "unauthorized", "authentication required")
+			return
+		}
+		if requiredRole != "" && !openauth.HasPermission(claims.Role, requiredRole) {
+			openhttp.WriteError(w, http.StatusForbidden, "forbidden", "insufficient role")
 			return
 		}
 		ctx := context.WithValue(r.Context(), userClaimsKey, claims)

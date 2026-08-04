@@ -19,6 +19,7 @@ type Config struct {
 	OPAPublicURL       string
 	EnrollToken        string
 	AuthRequired       bool
+	AuthMode           string
 	AgentStaleAfter    time.Duration
 	CORSOrigin         string
 }
@@ -36,6 +37,7 @@ func Load() Config {
 		OPAPublicURL:       os.Getenv("OPA_PUBLIC_URL"),
 		EnrollToken:        os.Getenv("OPA_HUB_ENROLL_TOKEN"),
 		AuthRequired:       truthy(os.Getenv("OPA_AUTH_REQUIRED")),
+		AuthMode:           strings.ToLower(strings.TrimSpace(os.Getenv("AUTH_MODE"))),
 		AgentStaleAfter:    durationEnv("OPA_HUB_AGENT_STALE_AFTER", 5*time.Minute),
 		CORSOrigin:         os.Getenv("CORS_ORIGIN"),
 	}
