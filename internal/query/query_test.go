@@ -36,6 +36,20 @@ func TestSafeTimeLiteral(t *testing.T) {
 	if safeTimeLiteral("x'; DROP") != "" {
 		t.Fatal("rejected injection")
 	}
+	// RFC3339 / ISO must become ClickHouse DateTime (no Z / T / fractional).
+	cases := map[string]string{
+		"2026-07-28T12:14:18Z":        "2026-07-28 12:14:18",
+		"2026-07-28T12:14:18.000Z":    "2026-07-28 12:14:18",
+		"2026-07-28T12:14:18":         "2026-07-28 12:14:18",
+		"2026-07-28 12:14:18.000":     "2026-07-28 12:14:18",
+		"2026-07-28 12:14:18":         "2026-07-28 12:14:18",
+		"2026-07-28":                  "2026-07-28 00:00:00",
+	}
+	for in, want := range cases {
+		if got := safeTimeLiteral(in); got != want {
+			t.Fatalf("safeTimeLiteral(%q)=%q want %q", in, got, want)
+		}
+	}
 }
 
 func TestSafeIntervalAndMatchers(t *testing.T) {

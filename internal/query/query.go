@@ -250,10 +250,20 @@ func safeTimeLiteral(s string) string {
 	if strings.ContainsAny(s, "';\\") {
 		return ""
 	}
+	// Normalize RFC3339 / ISO / epoch into ClickHouse DateTime literals.
+	// opa.profiles.hour (and similar DateTime cols) reject trailing Z / fractional
+	// seconds when compared as quoted strings — dashboard chTime is already safe,
+	// but clients and fromISO-style params are not.
+	if t, err := parseFlexibleTime(s); err == nil {
+		return t.UTC().Format("2006-01-02 15:04:05")
+	}
 	return s
 }
 
 // timeCompareSQL returns " AND <col> >= <expr>" (or <=) with correct quoting.
+// String timestamps go through parseDateTimeBestEffort so RFC3339 (…T…Z) works
+// the same as dashboard chTime (YYYY-MM-DD HH:MM:SS) — bare quoted strings fail
+// against DateTime64 on ClickHouse 24.x.
 func timeCompareSQL(col, op, raw string) string {
 	lit := safeTimeLiteral(raw)
 	if lit == "" {
@@ -264,7 +274,7 @@ func timeCompareSQL(col, op, raw string) string {
 		strings.HasPrefix(upper, "PARSEDATETIME") {
 		return fmt.Sprintf(" AND %s %s %s", col, op, lit)
 	}
-	return fmt.Sprintf(" AND %s %s '%s'", col, op, escapeSQL(lit))
+	return fmt.Sprintf(" AND %s %s parseDateTimeBestEffort('%s')", col, op, escapeSQL(lit))
 }
 
 func entrySpanConjunct(alias string) string {
