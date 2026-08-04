@@ -58,7 +58,7 @@ func New(cfg config.Config) *Server {
 func (s *Server) routes() {
 	regH := &registry.Handler{Reg: s.reg, EnrollToken: s.cfg.EnrollToken}
 	ingH := &ingest.Handler{Reg: s.reg, Writer: s.writer, EnrollToken: s.cfg.EnrollToken}
-	authH := auth.New(s.cfg.JWTSecret, s.cfg.AuthRequired, s.cfg.OPAPublicURL)
+	authH := auth.New(s.cfg.JWTSecret, s.cfg.AuthRequired, s.cfg.OPAPublicURL, s.cfg.ServiceJWTSecret)
 	s.authH = authH
 	queryH := &query.Handler{
 		Reg:       s.reg,
@@ -154,6 +154,10 @@ func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 		chOK = false
 		_ = err
 	}
+	authMode := s.cfg.AuthMode
+	if authMode == "" {
+		authMode = "standalone"
+	}
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(map[string]any{
 		"status":     "ok",
@@ -162,6 +166,7 @@ func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 		"agents":     s.reg.Count(),
 		"clickhouse": chOK,
 		"topology":   "hub-spoke",
+		"auth_mode":  authMode,
 	})
 }
 

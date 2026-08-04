@@ -12,9 +12,10 @@ import (
 
 // registerTenancyAndPeerRoutes exposes org discovery for OPM/OSA and peer health.
 // GitHub App/PAT credentials are not stored on the hub — peers link via PEER_ORA_URL.
+// Tenancy discovery requires a user JWT (viewer+) or a service JWT (health:read).
 func (s *Server) registerTenancyAndPeerRoutes() {
-	s.mux.HandleFunc("/api/tenancy/organizations", s.handleTenancyOrganizations)
-	s.mux.HandleFunc("/api/github/status", s.handleGitHubStatus)
+	s.mux.HandleFunc("/api/tenancy/organizations", s.authH.RequireUserOrService("viewer", "health:read", s.handleTenancyOrganizations))
+	s.mux.HandleFunc("/api/github/status", s.authH.RequireUserOrService("viewer", "health:read", s.handleGitHubStatus))
 	s.mux.HandleFunc("/api/peer/health", s.handlePeerHealth)
 }
 
