@@ -121,6 +121,8 @@ When `OPA_AUTH_REQUIRED=1`, these routes require `Authorization: Bearer <user JW
 | `GET` | `/api/stats` | Trace / storage / registry summary for Statistics page |
 | `GET` | `/api/commands` | CLI/worker/cron entry spans (`is_cli=1`) |
 | `GET`/`POST` | `/api/key-transactions` | Named key-transaction list/create |
+| `GET` | `/api/infra/hosts` | Host inventory from `opa.metric_series` (reporting state) |
+| `GET` | `/api/transactions/compare` | Cohort compare of entry-span aggregates by dimension |
 | `GET`/`POST` | `/api/synthetics` | List/create synthetic checks (`opa.synthetic_checks`) |
 | `GET`/`PUT`/`DELETE` | `/api/synthetics/{id}` | Get/update/delete a check |
 | `GET` | `/api/synthetics/{id}/results` | Recent probe results (`opa.synthetic_results`) |
