@@ -72,20 +72,28 @@ func (h *Handler) ServeLogin(w http.ResponseWriter, r *http.Request) {
 		openhttp.WriteError(w, http.StatusUnauthorized, "unauthorized", "invalid credentials")
 		return
 	}
+	user := map[string]any{
+		"username": claims.Username,
+		"role":     claims.Role,
+	}
+	if claims.OrgID != "" {
+		user["org_id"] = claims.OrgID
+	}
+	if len(claims.ProjectIDs) > 0 {
+		user["project_ids"] = claims.ProjectIDs
+	}
 	writeJSON(w, map[string]any{
 		"token":      tok,
 		"expires_at": exp.Format(time.RFC3339),
 		"mode":       "hub",
-		"user": map[string]any{
-			"username": claims.Username,
-			"role":     claims.Role,
-		},
+		"user":       user,
 	})
 }
 
 // ServeRegister handles POST /api/auth/register.
 // Self-registration is capped to viewer. Elevating role requires an admin JWT.
 // When AuthRequired is true, registration itself requires an admin JWT.
+// Optional org_id / project_ids bind the new user to a project allowlist.
 func (h *Handler) ServeRegister(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		openhttp.WriteError(w, http.StatusMethodNotAllowed, "method_not_allowed", "POST required")
@@ -103,9 +111,11 @@ func (h *Handler) ServeRegister(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	var body struct {
-		Username string `json:"username"`
-		Password string `json:"password"`
-		Role     string `json:"role"`
+		Username   string   `json:"username"`
+		Password   string   `json:"password"`
+		Role       string   `json:"role"`
+		OrgID      string   `json:"org_id"`
+		ProjectIDs []string `json:"project_ids"`
 	}
 	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<16)).Decode(&body); err != nil {
 		openhttp.WriteError(w, http.StatusBadRequest, "bad_request", "invalid JSON body")
@@ -120,7 +130,14 @@ func (h *Handler) ServeRegister(w http.ResponseWriter, r *http.Request) {
 	if role != "viewer" && !(callerOK && openauth.HasPermission(caller.Role, "admin")) {
 		role = "viewer"
 	}
-	if err := h.local.Register(body.Username, body.Password, role); err != nil {
+	// Non-admins cannot assign membership (self-reg stays unbound viewer).
+	orgID := strings.TrimSpace(body.OrgID)
+	projectIDs := openauth.NormalizeProjectIDs(body.ProjectIDs)
+	if !(callerOK && openauth.HasPermission(caller.Role, "admin")) {
+		orgID = ""
+		projectIDs = nil
+	}
+	if err := h.local.RegisterWithMembership(body.Username, body.Password, role, orgID, projectIDs); err != nil {
 		if body.Username == "" || len(body.Password) < 8 {
 			openhttp.WriteError(w, http.StatusBadRequest, "bad_request", "username and password (>=8) required")
 			return
@@ -128,9 +145,16 @@ func (h *Handler) ServeRegister(w http.ResponseWriter, r *http.Request) {
 		openhttp.WriteError(w, http.StatusConflict, "conflict", "username already registered")
 		return
 	}
+	user := map[string]any{"username": body.Username, "role": role}
+	if orgID != "" {
+		user["org_id"] = orgID
+	}
+	if len(projectIDs) > 0 {
+		user["project_ids"] = projectIDs
+	}
 	writeJSON(w, map[string]any{
 		"ok":   true,
-		"user": map[string]any{"username": body.Username, "role": role},
+		"user": user,
 	})
 }
 
@@ -164,7 +188,14 @@ func (h *Handler) ServeStatus(w http.ResponseWriter, r *http.Request) {
 		"mode":          "hub",
 	}
 	if authenticated {
-		out["user"] = map[string]any{"username": claims.Username, "role": claims.Role}
+		user := map[string]any{"username": claims.Username, "role": claims.Role}
+		if claims.OrgID != "" {
+			user["org_id"] = claims.OrgID
+		}
+		if len(claims.ProjectIDs) > 0 {
+			user["project_ids"] = claims.ProjectIDs
+		}
+		out["user"] = user
 	}
 	writeJSON(w, out)
 }
