@@ -1,14 +1,9 @@
 package auth
 
 import (
-	"crypto/hmac"
-	"crypto/rand"
-	"crypto/sha256"
-	"encoding/base64"
 	"encoding/json"
 	"net/http"
 	"strings"
-	"sync"
 	"time"
 
 	openauth "github.com/TheGrimmChester/open-auth-go"
@@ -17,52 +12,26 @@ import (
 
 // Handler issues user JWTs for OPA-Dashboard when co-deployed, and for
 // standalone OPA installs. Tokens are standard HS256 JWTs (Open-Auth-Go).
+// Credential store and minting go through openauth.LocalIssuer.
 type Handler struct {
 	JWTSecret    []byte
 	AuthRequired bool
 	PublicURL    string
 	Issuer       string
-
-	mu    sync.RWMutex
-	users map[string]userRecord // username → record
-}
-
-type userRecord struct {
-	Username     string
-	PasswordHash string
-	Role         string
-	CreatedAt    time.Time
+	local        *openauth.LocalIssuer
 }
 
 // New constructs an auth handler. When JWTSecret is empty, login still works
 // for lab installs but issued tokens use a process-local ephemeral secret.
 func New(jwtSecret string, authRequired bool, publicURL string) *Handler {
-	secret := []byte(jwtSecret)
-	if len(secret) == 0 {
-		secret = make([]byte, 32)
-		_, _ = rand.Read(secret)
-	}
-	h := &Handler{
-		JWTSecret:    secret,
+	local := openauth.NewLocalIssuer([]byte(jwtSecret), "opa-hub", "admin", "admin")
+	return &Handler{
+		JWTSecret:    local.Secret,
 		AuthRequired: authRequired,
 		PublicURL:    publicURL,
 		Issuer:       "opa-hub",
-		users:        make(map[string]userRecord),
+		local:        local,
 	}
-	// Seed a lab admin when no durable store is configured.
-	h.users["admin"] = userRecord{
-		Username:     "admin",
-		PasswordHash: hashPassword("admin", secret),
-		Role:         "admin",
-		CreatedAt:    time.Now().UTC(),
-	}
-	return h
-}
-
-func hashPassword(password string, secret []byte) string {
-	mac := hmac.New(sha256.New, secret)
-	_, _ = mac.Write([]byte(password))
-	return base64.RawURLEncoding.EncodeToString(mac.Sum(nil))
 }
 
 func (h *Handler) mintToken(username, role string) (string, time.Time, error) {
@@ -75,6 +44,9 @@ func (h *Handler) mintToken(username, role string) (string, time.Time, error) {
 }
 
 func (h *Handler) parseToken(token string) (*openauth.UserClaims, error) {
+	if h.local != nil {
+		return h.local.Parse(token)
+	}
 	return openauth.ParseUserJWT(token, h.JWTSecret)
 }
 
@@ -92,16 +64,9 @@ func (h *Handler) ServeLogin(w http.ResponseWriter, r *http.Request) {
 		openhttp.WriteError(w, http.StatusBadRequest, "bad_request", "invalid JSON body")
 		return
 	}
-	h.mu.RLock()
-	u, ok := h.users[creds.Username]
-	h.mu.RUnlock()
-	if !ok || u.PasswordHash != hashPassword(creds.Password, h.JWTSecret) {
+	tok, exp, claims, err := h.local.Login(creds.Username, creds.Password)
+	if err != nil || claims == nil {
 		openhttp.WriteError(w, http.StatusUnauthorized, "unauthorized", "invalid credentials")
-		return
-	}
-	tok, exp, err := h.mintToken(u.Username, u.Role)
-	if err != nil {
-		openhttp.WriteError(w, http.StatusInternalServerError, "token_error", "failed to mint token")
 		return
 	}
 	writeJSON(w, map[string]any{
@@ -109,8 +74,8 @@ func (h *Handler) ServeLogin(w http.ResponseWriter, r *http.Request) {
 		"expires_at": exp.Format(time.RFC3339),
 		"mode":       "hub",
 		"user": map[string]any{
-			"username": u.Username,
-			"role":     u.Role,
+			"username": claims.Username,
+			"role":     claims.Role,
 		},
 	})
 }
@@ -131,25 +96,17 @@ func (h *Handler) ServeRegister(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	body.Username = strings.TrimSpace(body.Username)
-	if body.Username == "" || len(body.Password) < 8 {
-		openhttp.WriteError(w, http.StatusBadRequest, "bad_request", "username and password (>=8) required")
+	if err := h.local.Register(body.Username, body.Password, body.Role); err != nil {
+		if body.Username == "" || len(body.Password) < 8 {
+			openhttp.WriteError(w, http.StatusBadRequest, "bad_request", "username and password (>=8) required")
+			return
+		}
+		openhttp.WriteError(w, http.StatusConflict, "conflict", "username already registered")
 		return
 	}
 	role := body.Role
 	if role == "" {
 		role = "viewer"
-	}
-	h.mu.Lock()
-	defer h.mu.Unlock()
-	if _, exists := h.users[body.Username]; exists {
-		openhttp.WriteError(w, http.StatusConflict, "conflict", "username already registered")
-		return
-	}
-	h.users[body.Username] = userRecord{
-		Username:     body.Username,
-		PasswordHash: hashPassword(body.Password, h.JWTSecret),
-		Role:         role,
-		CreatedAt:    time.Now().UTC(),
 	}
 	writeJSON(w, map[string]any{
 		"ok":   true,

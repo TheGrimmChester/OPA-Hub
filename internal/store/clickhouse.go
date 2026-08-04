@@ -46,6 +46,14 @@ func (w *Writer) Query(sql string) ([]map[string]any, error) {
 	return w.client.Query(sql)
 }
 
+// Exec runs a non-row SQL statement (INSERT / ALTER / DDL) via Open-ClickHouse-Go.
+func (w *Writer) Exec(sql string) error {
+	if w == nil || w.client == nil {
+		return fmt.Errorf("clickhouse writer not configured")
+	}
+	return w.client.Exec(w.client.RewriteSQL(sql))
+}
+
 // Client exposes the underlying Open-ClickHouse-Go client for advanced callers.
 func (w *Writer) Client() *openclickhouse.Client {
 	if w == nil {

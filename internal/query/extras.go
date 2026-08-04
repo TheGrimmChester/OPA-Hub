@@ -1,0 +1,234 @@
+package query
+
+import (
+	"fmt"
+	"net/http"
+	"strconv"
+
+	openhttp "github.com/TheGrimmChester/open-http-go"
+)
+
+// ServeProfiles handles GET /api/profiles — top functions by self-time.
+func (h *Handler) ServeProfiles(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		openhttp.WriteError(w, http.StatusMethodNotAllowed, "method_not_allowed", "GET required")
+		return
+	}
+	if h.Writer == nil {
+		openhttp.WriteError(w, http.StatusServiceUnavailable, "clickhouse_unavailable", "ClickHouse not configured")
+		return
+	}
+	filter := " WHERE " + tenantWhere(r, "")
+	if s := r.URL.Query().Get("service"); s != "" {
+		filter += fmt.Sprintf(" AND service = '%s'", escapeSQL(s))
+	}
+	if from := safeTimeLiteral(r.URL.Query().Get("from")); from != "" {
+		filter += fmt.Sprintf(" AND hour >= '%s'", escapeSQL(from))
+	}
+	if to := safeTimeLiteral(r.URL.Query().Get("to")); to != "" {
+		filter += fmt.Sprintf(" AND hour <= '%s'", escapeSQL(to))
+	}
+	limit := 100
+	if l := r.URL.Query().Get("limit"); l != "" {
+		if n, err := strconv.Atoi(l); err == nil && n > 0 && n <= 1000 {
+			limit = n
+		}
+	}
+	sql := fmt.Sprintf(`SELECT
+		service, function,
+		sum(call_count) as call_count,
+		sum(total_wall_ms) as total_wall_ms,
+		sum(self_wall_ms) as self_wall_ms,
+		sum(total_cpu_ms) as total_cpu_ms,
+		sum(memory_delta) as memory_delta
+		FROM opa.profiles%s
+		GROUP BY service, function
+		ORDER BY self_wall_ms DESC
+		LIMIT %d`, filter, limit)
+	rows, err := h.Writer.Query(sql)
+	if err != nil {
+		openhttp.WriteError(w, http.StatusInternalServerError, "query_error", err.Error())
+		return
+	}
+	funcs := make([]map[string]any, 0, len(rows))
+	var totalSelf float64
+	for _, row := range rows {
+		self := asFloat64(row, "self_wall_ms")
+		totalSelf += self
+		funcs = append(funcs, map[string]any{
+			"service":       asString(row, "service"),
+			"function":      asString(row, "function"),
+			"call_count":    asUint64(row, "call_count"),
+			"total_wall_ms": asFloat64(row, "total_wall_ms"),
+			"self_wall_ms":  self,
+			"total_cpu_ms":  asFloat64(row, "total_cpu_ms"),
+			"memory_delta":  asFloat64(row, "memory_delta"),
+		})
+	}
+	for _, f := range funcs {
+		if totalSelf > 0 {
+			f["self_pct"] = f["self_wall_ms"].(float64) / totalSelf * 100
+		} else {
+			f["self_pct"] = 0.0
+		}
+	}
+	writeJSON(w, map[string]any{
+		"functions":          funcs,
+		"total_self_wall_ms": totalSelf,
+		"source":             "opa-hub",
+	})
+}
+
+// ServeErrors handles GET /api/errors — grouped error inbox list.
+func (h *Handler) ServeErrors(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		openhttp.WriteError(w, http.StatusMethodNotAllowed, "method_not_allowed", "GET required")
+		return
+	}
+	if h.Writer == nil {
+		openhttp.WriteError(w, http.StatusServiceUnavailable, "clickhouse_unavailable", "ClickHouse not configured")
+		return
+	}
+	limit, offset := parseLimitOffset(r, 100, 500)
+	statusFilter := r.URL.Query().Get("status")
+	service := r.URL.Query().Get("service")
+
+	baseWhere := "WHERE 1=1" + tenantAnd(r, "ei.")
+	egsScope := ""
+	if scope := tenantAnd(r, ""); scope != "" {
+		egsScope = " WHERE 1=1" + scope
+	}
+	if service != "" && service != "unknown" {
+		baseWhere += fmt.Sprintf(" AND ei.service = '%s'", escapeSQL(service))
+	}
+	if statusFilter == "unresolved" {
+		baseWhere += " AND coalesce(nullif(egs.status, ''), 'unresolved') = 'unresolved'"
+	} else if statusFilter == "resolved" || statusFilter == "ignored" {
+		baseWhere += fmt.Sprintf(" AND egs.status = '%s'", escapeSQL(statusFilter))
+	}
+	baseWhere += timeCompareSQL("ei.occurred_at", ">=", r.URL.Query().Get("from"))
+	if r.URL.Query().Get("from") == "" {
+		baseWhere += " AND ei.occurred_at >= now() - INTERVAL 7 DAY"
+	}
+	baseWhere += timeCompareSQL("ei.occurred_at", "<=", r.URL.Query().Get("to"))
+
+	sql := fmt.Sprintf(`SELECT
+		ei.group_id as group_id,
+		any(ei.error_type) as error_type,
+		any(ei.error_message) as error_message,
+		any(ei.service) as service,
+		count(*) as count,
+		min(ei.occurred_at) as first_seen,
+		max(ei.occurred_at) as last_seen,
+		coalesce(nullif(egs.status, ''), 'unresolved') as status,
+		egs.assigned_to as assigned_to
+		FROM opa.error_instances ei
+		LEFT JOIN (SELECT group_id, status, assigned_to FROM opa.error_group_status FINAL%s) egs ON ei.group_id = egs.group_id
+		%s
+		GROUP BY ei.group_id, egs.status, egs.assigned_to
+		ORDER BY last_seen DESC
+		LIMIT %d OFFSET %d`, egsScope, baseWhere, limit, offset)
+
+	rows, err := h.Writer.Query(sql)
+	if err != nil {
+		openhttp.WriteError(w, http.StatusInternalServerError, "query_error", err.Error())
+		return
+	}
+	errors := make([]map[string]any, 0, len(rows))
+	for _, row := range rows {
+		errors = append(errors, map[string]any{
+			"id":            asString(row, "group_id"),
+			"group_id":      asString(row, "group_id"),
+			"error_type":    asString(row, "error_type"),
+			"error_message": asString(row, "error_message"),
+			"service":       asString(row, "service"),
+			"count":         asUint64(row, "count"),
+			"first_seen":    asString(row, "first_seen"),
+			"last_seen":     asString(row, "last_seen"),
+			"status":        asString(row, "status"),
+			"assigned_to":   asString(row, "assigned_to"),
+		})
+	}
+	writeJSON(w, map[string]any{"errors": errors, "count": len(errors), "source": "opa-hub"})
+}
+
+// ServeSynthetics handles GET /api/synthetics — list checks with recent health.
+func (h *Handler) ServeSynthetics(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		openhttp.WriteError(w, http.StatusMethodNotAllowed, "method_not_allowed", "GET required")
+		return
+	}
+	if h.Writer == nil {
+		openhttp.WriteError(w, http.StatusServiceUnavailable, "clickhouse_unavailable", "ClickHouse not configured")
+		return
+	}
+	scope := tenantAnd(r, "")
+	sql := fmt.Sprintf(`SELECT
+		id, organization_id, project_id, name, url, method, headers,
+		interval_seconds, timeout_ms, assert_status, assert_body_contains,
+		assert_max_latency_ms, enabled
+		FROM opa.synthetic_checks FINAL
+		WHERE 1=1%s
+		ORDER BY name`, scope)
+	rows, err := h.Writer.Query(sql)
+	if err != nil {
+		openhttp.WriteError(w, http.StatusInternalServerError, "query_error", err.Error())
+		return
+	}
+	checks := make([]map[string]any, 0, len(rows))
+	for _, row := range rows {
+		id := asString(row, "id")
+		check := map[string]any{
+			"id":                    id,
+			"organization_id":       asString(row, "organization_id"),
+			"project_id":            asString(row, "project_id"),
+			"name":                  asString(row, "name"),
+			"url":                   asString(row, "url"),
+			"method":                asString(row, "method"),
+			"headers":               asString(row, "headers"),
+			"interval_seconds":      asUint64(row, "interval_seconds"),
+			"timeout_ms":            asUint64(row, "timeout_ms"),
+			"assert_status":         asUint64(row, "assert_status"),
+			"assert_body_contains":  asString(row, "assert_body_contains"),
+			"assert_max_latency_ms": asUint64(row, "assert_max_latency_ms"),
+			"enabled":               asUint64(row, "enabled"),
+		}
+		if id != "" {
+			healthSQL := fmt.Sprintf(`SELECT
+				count() as probes,
+				sum(ok) as ok_count,
+				avg(latency_ms) as avg_latency_ms,
+				max(ts) as last_ts
+				FROM opa.synthetic_results
+				WHERE check_id = '%s'%s AND ts >= now() - INTERVAL 24 HOUR`, escapeSQL(id), scope)
+			if hRows, hErr := h.Writer.Query(healthSQL); hErr == nil && len(hRows) > 0 {
+				probes := asUint64(hRows[0], "probes")
+				okCount := asUint64(hRows[0], "ok_count")
+				check["probes_24h"] = probes
+				check["ok_24h"] = okCount
+				check["avg_latency_ms"] = asFloat64(hRows[0], "avg_latency_ms")
+				check["last_ts"] = asString(hRows[0], "last_ts")
+				if probes > 0 {
+					check["success_rate"] = float64(okCount) / float64(probes) * 100
+				}
+			}
+		}
+		checks = append(checks, check)
+	}
+	writeJSON(w, map[string]any{"checks": checks, "source": "opa-hub"})
+}
+
+// ServeSyntheticsLocations handles GET /api/synthetics/locations.
+func (h *Handler) ServeSyntheticsLocations(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		openhttp.WriteError(w, http.StatusMethodNotAllowed, "method_not_allowed", "GET required")
+		return
+	}
+	// Hub does not run probe workers; locations are informational placeholders.
+	writeJSON(w, map[string]any{
+		"locations": []map[string]any{
+			{"id": "hub", "name": "Central hub", "region": "central"},
+		},
+		"source": "opa-hub",
+	})
+}
