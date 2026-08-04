@@ -85,9 +85,20 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("/api/query", authH.Middleware(queryH.ServeQueryRoot))
 	s.mux.HandleFunc("/api/admin", authH.Middleware(queryH.ServeAdmin))
 	s.mux.HandleFunc("/api/services/metadata", authH.Middleware(queryH.ServeServicesMetadata))
+	s.mux.HandleFunc("/api/services/", authH.Middleware(queryH.ServeServicesSubpath))
 	s.mux.HandleFunc("/api/services", authH.Middleware(queryH.ServeServices))
 	s.mux.HandleFunc("/api/traces/", authH.Middleware(queryH.ServeTracesSubpath))
 	s.mux.HandleFunc("/api/traces", authH.Middleware(queryH.ServeTraces))
+
+	// Span-derived observability reads (SQL / Redis / HTTP / dumps / stats / commands / KT)
+	s.mux.HandleFunc("/api/sql/queries/", authH.Middleware(queryH.ServeSQLQueriesSubpath))
+	s.mux.HandleFunc("/api/sql/queries", authH.Middleware(queryH.ServeSQLQueries))
+	s.mux.HandleFunc("/api/redis/operations", authH.Middleware(queryH.ServeRedisOperations))
+	s.mux.HandleFunc("/api/http-calls", authH.Middleware(queryH.ServeHTTPCalls))
+	s.mux.HandleFunc("/api/dumps", authH.Middleware(queryH.ServeDumps))
+	s.mux.HandleFunc("/api/stats", authH.Middleware(queryH.ServeStats))
+	s.mux.HandleFunc("/api/commands", authH.Middleware(queryH.ServeCommands))
+	s.mux.HandleFunc("/api/key-transactions", authH.Middleware(queryH.ServeKeyTransactions))
 
 	// Metrics explorer + performance charts
 	s.mux.HandleFunc("/api/metrics/names", authH.Middleware(queryH.ServeMetricNames))
