@@ -128,6 +128,11 @@ When `OPA_AUTH_REQUIRED=1`, these routes require `Authorization: Bearer <user JW
 | `GET`/`PUT`/`DELETE` | `/api/synthetics/{id}` | Get/update/delete a check |
 | `GET` | `/api/synthetics/{id}/results` | Recent probe results (`opa.synthetic_results`) |
 | `GET` | `/api/synthetics/locations` | Probe location placeholders |
+| `GET`/`POST` | `/api/releases` | List/create release markers (`opa.release_markers`) for suspect-commit attribution |
+| `GET` | `/api/diagnostics/suspect-commits` | Ranked release suspects near error-rate shifts (`?service=&hours=`) |
+| `GET` | `/api/diagnostics/heap` | Heap dominator snapshots (`opa.heap_snapshots`; optional `?id=` detail) |
+| `GET` | `/api/diagnostics/threads` | Aggregated thread samples (`opa.thread_samples`) |
+| `GET` | `/api/diagnostics/locks` | Aggregated lock contention (`opa.lock_contention`) |
 
 The hub **owns** these reads (and config CRUD) against the central ClickHouse `opa` database. Routine dashboard traffic does not call edge agents for the paths above.
 
@@ -172,4 +177,4 @@ RUM **ingest** (`POST /api/rum`, `POST /api/rum/replay`) and mobile crash **inge
 
 Hub owns identity (user JWTs) and a lightweight org directory. GitHub credentials stay in ORA connectors; OPM calls both peers.
 
-Remaining edge-owned workers include RUM/mobile crash ingest, synthetic probe workers, alert evaluation/delivery, SLO evaluation, and anomaly detection/analyze.
+Remaining edge-owned workers include RUM/mobile crash ingest, synthetic probe workers, alert evaluation/delivery, SLO evaluation, anomaly detection/analyze, and heap/thread/lock sample ingest (`POST /v1/heap`, `/v1/threads`, `/v1/locks`).
