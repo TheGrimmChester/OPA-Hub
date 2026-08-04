@@ -48,6 +48,21 @@ var exploreAttr = map[string]map[exploreSignal]string{
 	"status": {
 		exploreSpans: "status",
 	},
+	// Runtime / stack dims — populated on NAS (language/framework nearly
+	// universal; db_system sparse but non-empty). Prefer these over
+	// environment/host/release when those columns are still blank.
+	"language": {
+		exploreSpans: "language",
+	},
+	"framework": {
+		exploreSpans: "framework",
+	},
+	"db_system": {
+		exploreSpans: "db_system",
+	},
+	"url_path": {
+		exploreSpans: "url_path",
+	},
 	"level": {
 		exploreLogs: "level",
 	},

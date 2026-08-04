@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.7.4
+
+- Explore facets: allowlist `language`, `framework`, `db_system`, and `url_path` on spans (NAS `opa.spans_min` has non-empty values; `environment` / `host` / `release` remain allowlisted but empty until ingest fills them).
+
 ## 0.7.3
 
 - Trace Explorer facets: `GET /api/explore/facets` (Wave 14 agent query restored on hub against `opa.spans_min` / signal tables).
