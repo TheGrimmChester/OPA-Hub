@@ -53,6 +53,10 @@ func (h *Handler) Require(requiredRole string, next http.HandlerFunc) http.Handl
 			openhttp.WriteError(w, http.StatusForbidden, "forbidden", "tenant mismatch")
 			return
 		}
+		if err := openauth.EnforceProjectACL(r, claims); err != nil {
+			openhttp.WriteError(w, http.StatusForbidden, "forbidden", "project access denied")
+			return
+		}
 		ctx := context.WithValue(r.Context(), userClaimsKey, claims)
 		next(w, r.WithContext(ctx))
 	}
@@ -98,6 +102,10 @@ func (h *Handler) RequireUserOrService(requiredRole, requiredServiceScope string
 		}
 		if err := openauth.ApplyUserTenantHeaders(r, claims); err != nil {
 			openhttp.WriteError(w, http.StatusForbidden, "forbidden", "tenant mismatch")
+			return
+		}
+		if err := openauth.EnforceProjectACL(r, claims); err != nil {
+			openhttp.WriteError(w, http.StatusForbidden, "forbidden", "project access denied")
 			return
 		}
 		ctx := context.WithValue(r.Context(), userClaimsKey, claims)

@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.7.7
+
+- Per-user project ACLs inside an org: JWT `project_ids` allowlist enforced on auth middleware (tenancy + query routes including `/api/key-transactions`). Role `admin` bypasses; lab seed `admin` keeps full default-org access. `POST /api/auth/register` accepts optional `org_id` / `project_ids` (admin only).
+
 ## 0.7.6
 
 - Enforce tenant scopes when `OPA_AUTH_REQUIRED=1`: wire `opentenant.SetAuthEnforced`, always scope logs under auth, filter agents / tenancy orgs, tenant-bound alert/SLO/synthetics DELETE, editor role for mutations, lock down `/api/auth/register`, bind JWT `org_id`/`project_id` headers.
