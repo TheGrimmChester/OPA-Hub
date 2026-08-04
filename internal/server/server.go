@@ -17,7 +17,7 @@ import (
 	"github.com/TheGrimmChester/opa-hub/internal/store"
 )
 
-const version = "0.3.0"
+const version = "0.4.0"
 
 // Server is the opa-hub HTTP control plane.
 type Server struct {
@@ -88,6 +88,34 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("/api/services", authH.Middleware(queryH.ServeServices))
 	s.mux.HandleFunc("/api/traces/", authH.Middleware(queryH.ServeTracesSubpath))
 	s.mux.HandleFunc("/api/traces", authH.Middleware(queryH.ServeTraces))
+
+	// Metrics explorer + performance charts
+	s.mux.HandleFunc("/api/metrics/names", authH.Middleware(queryH.ServeMetricNames))
+	s.mux.HandleFunc("/api/metrics/labels", authH.Middleware(queryH.ServeMetricLabels))
+	s.mux.HandleFunc("/api/metrics/label-values", authH.Middleware(queryH.ServeMetricLabelValues))
+	s.mux.HandleFunc("/api/metrics/query-range", authH.Middleware(queryH.ServeMetricQueryRange))
+	s.mux.HandleFunc("/api/metrics/performance", authH.Middleware(queryH.ServeMetricsPerformance))
+	s.mux.HandleFunc("/api/metrics/network", authH.Middleware(queryH.ServeMetricsNetwork))
+
+	// Service map
+	s.mux.HandleFunc("/api/service-map/thresholds", authH.Middleware(queryH.ServeServiceMapThresholds))
+	s.mux.HandleFunc("/api/service-map/edge-traces", authH.Middleware(queryH.ServeServiceMapEdgeTraces))
+	s.mux.HandleFunc("/api/service-map", authH.Middleware(queryH.ServeServiceMap))
+
+	// Alerts (rules + history in ClickHouse; evaluation remains on edge agent)
+	s.mux.HandleFunc("/api/alerts/", authH.Middleware(queryH.ServeAlertsSubpath))
+	s.mux.HandleFunc("/api/alerts", authH.Middleware(queryH.ServeAlerts))
+
+	// RUM (browser sessions / vitals)
+	s.mux.HandleFunc("/api/rum/metrics", authH.Middleware(queryH.ServeRUMMetrics))
+	s.mux.HandleFunc("/api/rum/sessions/", authH.Middleware(queryH.ServeRUMSessionsSubpath))
+	s.mux.HandleFunc("/api/rum/sessions", authH.Middleware(queryH.ServeRUMSessions))
+
+	// Bonus surfaces used by the dashboard
+	s.mux.HandleFunc("/api/profiles", authH.Middleware(queryH.ServeProfiles))
+	s.mux.HandleFunc("/api/errors", authH.Middleware(queryH.ServeErrors))
+	s.mux.HandleFunc("/api/synthetics/locations", authH.Middleware(queryH.ServeSyntheticsLocations))
+	s.mux.HandleFunc("/api/synthetics", authH.Middleware(queryH.ServeSynthetics))
 
 	s.registerTenancyAndPeerRoutes()
 }

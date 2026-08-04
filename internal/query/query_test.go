@@ -3,6 +3,7 @@ package query
 import (
 	"net/http/httptest"
 	"testing"
+	"time"
 )
 
 func TestEscapeAndTenantWhere(t *testing.T) {
@@ -32,5 +33,25 @@ func TestSafeTimeLiteral(t *testing.T) {
 	}
 	if safeTimeLiteral("x'; DROP") != "" {
 		t.Fatal("rejected injection")
+	}
+}
+
+func TestSafeIntervalAndMatchers(t *testing.T) {
+	if safeInterval("bogus") != "1 HOUR" {
+		t.Fatal("default interval")
+	}
+	if safeInterval("5m") != "5 MINUTE" {
+		t.Fatal("5m")
+	}
+	ms, err := parseLabelMatchers([]string{"host:web-1", "env!:prod", "name=~api.*"})
+	if err != nil || len(ms) != 3 {
+		t.Fatalf("%v %v", ms, err)
+	}
+	if !ms[1].negate || !ms[2].regex {
+		t.Fatalf("%+v", ms)
+	}
+	d, err := parseRangeDuration("14d")
+	if err != nil || d != 14*24*time.Hour {
+		t.Fatalf("%v %v", d, err)
 	}
 }
