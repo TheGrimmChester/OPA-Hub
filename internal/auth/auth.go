@@ -14,23 +14,26 @@ import (
 // standalone OPA installs. Tokens are standard HS256 JWTs (Open-Auth-Go).
 // Credential store and minting go through openauth.LocalIssuer.
 type Handler struct {
-	JWTSecret    []byte
-	AuthRequired bool
-	PublicURL    string
-	Issuer       string
-	local        *openauth.LocalIssuer
+	JWTSecret     []byte
+	ServiceSecret []byte
+	AuthRequired  bool
+	PublicURL     string
+	Issuer        string
+	local         *openauth.LocalIssuer
 }
 
 // New constructs an auth handler. When JWTSecret is empty, login still works
 // for lab installs but issued tokens use a process-local ephemeral secret.
-func New(jwtSecret string, authRequired bool, publicURL string) *Handler {
+// serviceSecret is OPEN_SERVICE_JWT_SECRET for peer UserOrService routes.
+func New(jwtSecret string, authRequired bool, publicURL, serviceSecret string) *Handler {
 	local := openauth.NewLocalIssuer([]byte(jwtSecret), "opa-hub", "admin", "admin")
 	return &Handler{
-		JWTSecret:    local.Secret,
-		AuthRequired: authRequired,
-		PublicURL:    publicURL,
-		Issuer:       "opa-hub",
-		local:        local,
+		JWTSecret:     local.Secret,
+		ServiceSecret: []byte(strings.TrimSpace(serviceSecret)),
+		AuthRequired:  authRequired,
+		PublicURL:     publicURL,
+		Issuer:        "opa-hub",
+		local:         local,
 	}
 }
 

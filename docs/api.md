@@ -7,8 +7,10 @@ Health `service` id: `opa-hub`.
 `GET /api/health`
 
 ```json
-{"status":"ok","service":"opa-hub","version":"0.7.0","agents":0,"clickhouse":true,"topology":"hub-spoke"}
+{"status":"ok","service":"opa-hub","version":"0.7.0","agents":0,"clickhouse":true,"topology":"hub-spoke","auth_mode":"codeployed"}
 ```
+
+`auth_mode` mirrors `AUTH_MODE` (`standalone` | `codeployed`; defaults to `standalone` when unset).
 
 ## Agent registry
 
@@ -149,11 +151,11 @@ RUM **ingest** (`POST /api/rum`, `POST /api/rum/replay`) and mobile crash **inge
 
 ## Tenancy and GitHub linkage (for OPM)
 
-| Method | Path | Description |
-|--------|------|-------------|
-| `GET` | `/api/tenancy/organizations` | Organizations known to the hub (from agent registry; always includes `default-org`) |
-| `GET` | `/api/github/status` | Declares that GitHub App/PAT credentials live in **ORA** (`credentials_home: ora`) |
-| `GET` | `/api/peer/health` | Service JWT probe (`aud=opa-hub`, scope `health:read`) |
+| Method | Path | Auth | Description |
+|--------|------|------|-------------|
+| `GET` | `/api/tenancy/organizations` | User JWT (viewer+) or service JWT (`health:read`) when `OPA_AUTH_REQUIRED` | Organizations known to the hub (from agent registry; always includes `default-org`) |
+| `GET` | `/api/github/status` | User JWT (viewer+) or service JWT (`health:read`) when `OPA_AUTH_REQUIRED` | Declares that GitHub App/PAT credentials live in **ORA** (`credentials_home: ora`) |
+| `GET` | `/api/peer/health` | Service JWT (`aud=opa-hub`, scope `health:read`) | Peer probe for co-deployed products |
 
 Hub owns identity (user JWTs) and a lightweight org directory. GitHub credentials stay in ORA connectors; OPM calls both peers.
 

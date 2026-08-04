@@ -22,7 +22,8 @@ Central telemetry lives in the `opa` database (`CLICKHOUSE_DB=opa`). Peer produc
 
 ## Tenancy
 
-Enforce `X-Organization-ID` / `X-Project-ID` on control-plane routes as query surfaces land.
+- `GET /api/tenancy/organizations` and `GET /api/github/status` require a user JWT (viewer or higher) or a peer service JWT (`aud=opa-hub`, scope `health:read`) when `OPA_AUTH_REQUIRED=1`.
+- Enforce `X-Organization-ID` / `X-Project-ID` on control-plane routes as query surfaces land.
 
 ## Secrets
 
