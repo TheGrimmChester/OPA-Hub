@@ -8,6 +8,7 @@ import (
 	openclickhouse "github.com/TheGrimmChester/open-clickhouse-go"
 	openhttp "github.com/TheGrimmChester/open-http-go"
 	openlogger "github.com/TheGrimmChester/open-logger-go"
+	opentenant "github.com/TheGrimmChester/open-tenant-go"
 
 	"github.com/TheGrimmChester/opa-hub/internal/auth"
 	"github.com/TheGrimmChester/opa-hub/internal/config"
@@ -17,7 +18,7 @@ import (
 	"github.com/TheGrimmChester/opa-hub/internal/store"
 )
 
-	const version = "0.7.5"
+const version = "0.7.6"
 
 // Server is the opa-hub HTTP control plane.
 type Server struct {
@@ -32,6 +33,10 @@ type Server struct {
 
 // New builds a fully wired hub server.
 func New(cfg config.Config) *Server {
+	// Mirror OPA_AUTH_REQUIRED into Open-Tenant-Go so missing/"all" headers
+	// cannot widen list/query scope when auth is on (same as OPA-Agent / ORA/OSA/OPL).
+	opentenant.SetAuthEnforced(cfg.AuthRequired)
+
 	log := openlogger.New("opa-hub")
 	reg := registry.New(cfg.AgentStaleAfter)
 	writer := store.NewWriter(openclickhouse.Config{

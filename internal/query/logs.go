@@ -9,6 +9,7 @@ import (
 	"time"
 
 	openhttp "github.com/TheGrimmChester/open-http-go"
+	opentenant "github.com/TheGrimmChester/open-tenant-go"
 )
 
 // ServeLogs handles GET /api/logs — logs explorer used by the dashboard main nav.
@@ -32,18 +33,22 @@ func (h *Handler) ServeLogs(w http.ResponseWriter, r *http.Request) {
 
 	org := strings.TrimSpace(r.Header.Get("X-Organization-ID"))
 	proj := strings.TrimSpace(r.Header.Get("X-Project-ID"))
-	useJoin := (org != "" && !strings.EqualFold(org, "all")) ||
+	// Always join when auth-enforced (or when a concrete tenant header is set)
+	// so missing/"all" cannot dump every tenant's logs. Lab mode without
+	// headers still uses the unscoped path for local exploration.
+	useJoin := opentenant.AuthEnforced() ||
+		(org != "" && !strings.EqualFold(org, "all")) ||
 		(proj != "" && !strings.EqualFold(proj, "all"))
 
 	var (
-		baseWhere      string
-		fromClause     string
-		serviceColumn  = "service"
-		levelColumn    = "level"
-		messageColumn  = "message"
+		baseWhere       string
+		fromClause      string
+		serviceColumn   = "service"
+		levelColumn     = "level"
+		messageColumn   = "message"
 		timestampColumn = "timestamp"
-		countExpr      = "count()"
-		errorCountExpr = "countIf(upper(level) IN ('ERROR', 'CRITICAL', 'FATAL'))"
+		countExpr       = "count()"
+		errorCountExpr  = "countIf(upper(level) IN ('ERROR', 'CRITICAL', 'FATAL'))"
 	)
 
 	if useJoin {

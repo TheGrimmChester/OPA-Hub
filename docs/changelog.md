@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.7.6
+
+- Enforce tenant scopes when `OPA_AUTH_REQUIRED=1`: wire `opentenant.SetAuthEnforced`, always scope logs under auth, filter agents / tenancy orgs, tenant-bound alert/SLO/synthetics DELETE, editor role for mutations, lock down `/api/auth/register`, bind JWT `org_id`/`project_id` headers.
+
 ## 0.7.4
 
 - Explore facets: allowlist `language`, `framework`, `db_system`, and `url_path` on spans (NAS `opa.spans_min` has non-empty values; `environment` / `host` / `release` remain allowlisted but empty until ingest fills them).
