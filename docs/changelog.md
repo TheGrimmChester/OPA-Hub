@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.7.1
+
+- Alert Test (`POST /api/alerts/{id}`) queues `opa.alert_test_requests` for edge force-delivery and waits briefly for `opa.alert_history` (replaces the previous accepted stub).
+
 ## 0.7.0
 
 - Hub owns RUM session-replay reads: `GET /api/rum/replay/{id}`, `GET /api/rum/replay-timeline/{id}` from `opa.rum_replay_chunks`.

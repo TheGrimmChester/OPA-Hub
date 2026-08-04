@@ -17,7 +17,7 @@ import (
 	"github.com/TheGrimmChester/opa-hub/internal/store"
 )
 
-const version = "0.7.0"
+const version = "0.7.1"
 
 // Server is the opa-hub HTTP control plane.
 type Server struct {

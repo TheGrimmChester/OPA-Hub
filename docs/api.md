@@ -88,7 +88,7 @@ When `OPA_AUTH_REQUIRED=1`, these routes require `Authorization: Bearer <user JW
 | `GET`/`POST` | `/api/service-map/thresholds` | Health threshold config (`opa.service_map_thresholds`) |
 | `GET` | `/api/service-map/edge-traces` | Traces for a service→service edge |
 | `GET`/`POST` | `/api/alerts` | List/create alert rules (`opa.alerts`) |
-| `GET`/`PUT`/`DELETE`/`POST` | `/api/alerts/{id}` | Get/update/delete/test-accept a rule |
+| `GET`/`PUT`/`DELETE`/`POST` | `/api/alerts/{id}` | Get/update/delete/test a rule. `POST` queues edge delivery via `opa.alert_test_requests` and waits briefly for `opa.alert_history` |
 | `GET` | `/api/alerts/{id}/history` | Recent firings (`opa.alert_history`) |
 | `GET` | `/api/rum/metrics` | RUM aggregates + Core Web Vitals |
 | `GET` | `/api/rum/sessions` | Browser session list |
@@ -120,7 +120,7 @@ The hub **owns** these reads (and config CRUD) against the central ClickHouse `o
 
 See [ownership.md](ownership.md) for the hub vs edge writer/worker split.
 
-Alert **evaluation** (periodic condition checks and notification delivery) still runs on the edge agent, which reloads rules from `opa.alerts` each check tick. Hub owns the dashboard CRUD/list/history surface.
+Alert **evaluation** (periodic condition checks and notification delivery) still runs on the edge agent, which reloads rules from `opa.alerts` each check tick. Hub owns the dashboard CRUD/list/history surface. Dashboard **Test** (`POST /api/alerts/{id}`) inserts into `opa.alert_test_requests`; the edge leader force-fires delivery (no condition/cooldown) and writes `opa.alert_history` within a few seconds.
 
 SLO **evaluation** still runs on the edge agent and writes `opa.slo_metrics`; hub owns SLO CRUD and compliance reads from the same tables.
 
