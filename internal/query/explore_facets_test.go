@@ -24,8 +24,8 @@ func TestParseExploreSignal(t *testing.T) {
 }
 
 func TestResolveExploreAttr(t *testing.T) {
-	// Trace Explorer FacetSidebar fields.
-	for _, field := range []string{"service", "environment", "status", "host"} {
+	// Trace Explorer FacetSidebar fields (identity + NAS-backed runtime dims).
+	for _, field := range []string{"service", "environment", "status", "host", "language", "framework", "db_system", "url_path"} {
 		col, ok := resolveExploreAttr(exploreSpans, field)
 		if !ok || col == "" {
 			t.Fatalf("spans.%s should resolve", field)
@@ -33,6 +33,9 @@ func TestResolveExploreAttr(t *testing.T) {
 	}
 	if got, _ := resolveExploreAttr(exploreSpans, "host"); got != "hostname" {
 		t.Fatalf("host → hostname, got %q", got)
+	}
+	if got, _ := resolveExploreAttr(exploreSpans, "language"); got != "language" {
+		t.Fatalf("language → language, got %q", got)
 	}
 	if _, ok := resolveExploreAttr(exploreSpans, "level"); ok {
 		t.Fatal("level is logs-only")
