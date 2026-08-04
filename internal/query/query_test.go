@@ -5,10 +5,12 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	opentenant "github.com/TheGrimmChester/open-tenant-go"
 )
 
 func TestEscapeAndTenantWhere(t *testing.T) {
-	if got := escapeSQL("a'b"); got != "a''b" {
+	if got := escapeSQL(`a'b\c`); got != `a''b\\c` {
 		t.Fatalf("%q", got)
 	}
 	r := httptest.NewRequest("GET", "/api/services", nil)
@@ -22,7 +24,37 @@ func TestEscapeAndTenantWhere(t *testing.T) {
 	r2 := httptest.NewRequest("GET", "/api/services", nil)
 	r2.Header.Set("X-Organization-ID", "all")
 	if tenantWhere(r2, "") != "1=1" {
-		t.Fatalf("all org should be unscoped, got %q", tenantWhere(r2, ""))
+		t.Fatalf("all org should be unscoped when auth off, got %q", tenantWhere(r2, ""))
+	}
+}
+
+func TestTenantWhereAuthEnforced(t *testing.T) {
+	prev := opentenant.AuthEnforced()
+	opentenant.SetAuthEnforced(true)
+	t.Cleanup(func() { opentenant.SetAuthEnforced(prev) })
+
+	r := httptest.NewRequest("GET", "/api/services", nil)
+	got := tenantWhere(r, "")
+	want := "(coalesce(nullif(organization_id, ''), 'default-org') = 'default-org' AND coalesce(nullif(project_id, ''), 'default-project') = 'default-project')"
+	if got != want {
+		t.Fatalf("missing headers under auth: got %q want %q", got, want)
+	}
+
+	rAll := httptest.NewRequest("GET", "/api/services", nil)
+	rAll.Header.Set("X-Organization-ID", "all")
+	rAll.Header.Set("X-Project-ID", "all")
+	gotAll := tenantWhere(rAll, "")
+	if gotAll != want {
+		t.Fatalf("all markers under auth: got %q want %q", gotAll, want)
+	}
+
+	rOther := httptest.NewRequest("GET", "/api/services", nil)
+	rOther.Header.Set("X-Organization-ID", "acme")
+	rOther.Header.Set("X-Project-ID", "prod")
+	gotOther := tenantWhere(rOther, "")
+	wantOther := "(coalesce(nullif(organization_id, ''), 'default-org') = 'acme' AND coalesce(nullif(project_id, ''), 'default-project') = 'prod')"
+	if gotOther != wantOther {
+		t.Fatalf("concrete headers: got %q want %q", gotOther, wantOther)
 	}
 }
 
@@ -38,12 +70,12 @@ func TestSafeTimeLiteral(t *testing.T) {
 	}
 	// RFC3339 / ISO must become ClickHouse DateTime (no Z / T / fractional).
 	cases := map[string]string{
-		"2026-07-28T12:14:18Z":        "2026-07-28 12:14:18",
-		"2026-07-28T12:14:18.000Z":    "2026-07-28 12:14:18",
-		"2026-07-28T12:14:18":         "2026-07-28 12:14:18",
-		"2026-07-28 12:14:18.000":     "2026-07-28 12:14:18",
-		"2026-07-28 12:14:18":         "2026-07-28 12:14:18",
-		"2026-07-28":                  "2026-07-28 00:00:00",
+		"2026-07-28T12:14:18Z":     "2026-07-28 12:14:18",
+		"2026-07-28T12:14:18.000Z": "2026-07-28 12:14:18",
+		"2026-07-28T12:14:18":      "2026-07-28 12:14:18",
+		"2026-07-28 12:14:18.000":  "2026-07-28 12:14:18",
+		"2026-07-28 12:14:18":      "2026-07-28 12:14:18",
+		"2026-07-28":               "2026-07-28 00:00:00",
 	}
 	for in, want := range cases {
 		if got := safeTimeLiteral(in); got != want {

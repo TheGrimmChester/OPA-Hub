@@ -144,7 +144,7 @@ func writeJSON(w http.ResponseWriter, v any) {
 }
 
 func escapeSQL(s string) string {
-	return strings.ReplaceAll(s, "'", "''")
+	return opentenant.EscapeSQL(s)
 }
 
 func asString(row map[string]any, key string) string {

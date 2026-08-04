@@ -4,6 +4,8 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	openauth "github.com/TheGrimmChester/open-auth-go"
 )
 
 func TestMiddlewareRequiresViewerWhenAuthRequired(t *testing.T) {
@@ -40,6 +42,66 @@ func TestMiddlewareRequiresViewerWhenAuthRequired(t *testing.T) {
 	}
 }
 
+func TestMiddlewareMutationsRequireEditor(t *testing.T) {
+	h := New("test-jwt-secret-at-least-32-bytes-ok", true, "", "")
+	handler := h.Middleware(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNoContent)
+	})
+	viewerTok, err := openauth.MintUserJWT(h.JWTSecret, "v", "viewer", h.Issuer, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	req := httptest.NewRequest(http.MethodPost, "/api/alerts", nil)
+	req.Header.Set("Authorization", "Bearer "+viewerTok)
+	rec := httptest.NewRecorder()
+	handler(rec, req)
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("viewer POST: got %d want 403", rec.Code)
+	}
+
+	editorTok, err := openauth.MintUserJWT(h.JWTSecret, "e", "editor", h.Issuer, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	req2 := httptest.NewRequest(http.MethodPost, "/api/alerts", nil)
+	req2.Header.Set("Authorization", "Bearer "+editorTok)
+	rec2 := httptest.NewRecorder()
+	handler(rec2, req2)
+	if rec2.Code != http.StatusNoContent {
+		t.Fatalf("editor POST: got %d want 204", rec2.Code)
+	}
+}
+
+func TestMiddlewareTenantClaimMismatch(t *testing.T) {
+	h := New("test-jwt-secret-at-least-32-bytes-ok", true, "", "")
+	tok, err := openauth.MintUserJWTWithTenant(h.JWTSecret, "bound", "viewer", h.Issuer, "acme", "prod", 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	handler := h.Middleware(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("X-Organization-ID") != "acme" {
+			t.Fatalf("org header=%q", r.Header.Get("X-Organization-ID"))
+		}
+		w.WriteHeader(http.StatusOK)
+	})
+	bad := httptest.NewRequest(http.MethodGet, "/api/services", nil)
+	bad.Header.Set("Authorization", "Bearer "+tok)
+	bad.Header.Set("X-Organization-ID", "other")
+	rec := httptest.NewRecorder()
+	handler(rec, bad)
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("mismatch: got %d want 403", rec.Code)
+	}
+
+	ok := httptest.NewRequest(http.MethodGet, "/api/services", nil)
+	ok.Header.Set("Authorization", "Bearer "+tok)
+	rec2 := httptest.NewRecorder()
+	handler(rec2, ok)
+	if rec2.Code != http.StatusOK {
+		t.Fatalf("bound overwrite: got %d want 200", rec2.Code)
+	}
+}
+
 func TestMiddlewareAllowsWhenAuthNotRequired(t *testing.T) {
 	h := New("test-jwt-secret-at-least-32-bytes-ok", false, "", "")
 	called := false
@@ -54,3 +116,4 @@ func TestMiddlewareAllowsWhenAuthNotRequired(t *testing.T) {
 		t.Fatalf("auth optional: got %d called=%v", rec.Code, called)
 	}
 }
+

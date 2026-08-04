@@ -8,6 +8,7 @@ import (
 	"time"
 
 	openhttp "github.com/TheGrimmChester/open-http-go"
+	opentenant "github.com/TheGrimmChester/open-tenant-go"
 )
 
 // SLO is a persisted service-level objective (matches OPA-Agent / dashboard shape).
@@ -187,7 +188,10 @@ func (h *Handler) ServeSLOsSubpath(w http.ResponseWriter, r *http.Request) {
 		}
 		writeJSON(w, map[string]any{"status": "updated", "source": "opa-hub"})
 	case http.MethodDelete:
-		if err := h.Writer.Exec(fmt.Sprintf("ALTER TABLE opa.slos DELETE WHERE id = '%s'", escapeSQL(sloID))); err != nil {
+		owned := opentenant.FromRequest(r).OwnedRowPredicate("")
+		if err := h.Writer.Exec(fmt.Sprintf(
+			"ALTER TABLE opa.slos DELETE WHERE id = '%s' AND %s",
+			escapeSQL(sloID), owned)); err != nil {
 			openhttp.WriteError(w, http.StatusInternalServerError, "query_error", err.Error())
 			return
 		}

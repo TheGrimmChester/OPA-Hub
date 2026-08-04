@@ -8,6 +8,9 @@ import (
 
 	openauth "github.com/TheGrimmChester/open-auth-go"
 	openhttp "github.com/TheGrimmChester/open-http-go"
+	opentenant "github.com/TheGrimmChester/open-tenant-go"
+
+	"github.com/TheGrimmChester/opa-hub/internal/registry"
 )
 
 // registerTenancyAndPeerRoutes exposes org discovery for OPM/OSA and peer health.
@@ -25,6 +28,28 @@ func (s *Server) handleTenancyOrganizations(w http.ResponseWriter, r *http.Reque
 		return
 	}
 	orgs := s.reg.Organizations()
+	ctx := opentenant.FromRequest(r)
+	if ctx.OrgScoped() {
+		want := ctx.OrganizationID
+		if opentenant.AuthEnforced() && (want == "" || want == opentenant.All) {
+			want = opentenant.DefaultOrganizationID
+		}
+		filtered := make([]registry.OrganizationSummary, 0, 1)
+		for _, o := range orgs {
+			if o.ID == want {
+				filtered = append(filtered, o)
+			}
+		}
+		// Always surface the scoped org even if no agents enrolled yet.
+		if len(filtered) == 0 {
+			filtered = append(filtered, registry.OrganizationSummary{
+				ID:         want,
+				AgentCount: 0,
+				Source:     "request_scope",
+			})
+		}
+		orgs = filtered
+	}
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(map[string]any{
 		"organizations": orgs,

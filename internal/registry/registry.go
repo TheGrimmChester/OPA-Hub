@@ -11,6 +11,7 @@ import (
 	"time"
 
 	openhttp "github.com/TheGrimmChester/open-http-go"
+	opentenant "github.com/TheGrimmChester/open-tenant-go"
 )
 
 // Agent is a registered edge opa-agent instance.
@@ -160,6 +161,77 @@ func (r *Registry) List() []Agent {
 	return out
 }
 
+// ListScoped returns agents matching the request tenant scope.
+// When neither dimension is scoped (lab all-tenants), returns List().
+func (r *Registry) ListScoped(ctx opentenant.Context) []Agent {
+	all := r.List()
+	if !ctx.OrgScoped() && !ctx.ProjectScoped() {
+		return all
+	}
+	org, proj := ctx.OrganizationID, ctx.ProjectID
+	if opentenant.AuthEnforced() {
+		if org == "" || org == opentenant.All {
+			org = opentenant.DefaultOrganizationID
+		}
+		if proj == "" || proj == opentenant.All {
+			proj = opentenant.DefaultProjectID
+		}
+	}
+	out := make([]Agent, 0, len(all))
+	for _, a := range all {
+		aOrg := a.OrganizationID
+		if aOrg == "" {
+			aOrg = opentenant.DefaultOrganizationID
+		}
+		aProj := a.ProjectID
+		if aProj == "" {
+			aProj = opentenant.DefaultProjectID
+		}
+		if ctx.OrgScoped() && aOrg != org {
+			continue
+		}
+		if ctx.ProjectScoped() && aProj != proj {
+			continue
+		}
+		out = append(out, a)
+	}
+	return out
+}
+
+// agentInScope reports whether agent matches the request tenant.
+func agentInScope(a *Agent, ctx opentenant.Context) bool {
+	if a == nil {
+		return false
+	}
+	if !ctx.OrgScoped() && !ctx.ProjectScoped() {
+		return true
+	}
+	org, proj := ctx.OrganizationID, ctx.ProjectID
+	if opentenant.AuthEnforced() {
+		if org == "" || org == opentenant.All {
+			org = opentenant.DefaultOrganizationID
+		}
+		if proj == "" || proj == opentenant.All {
+			proj = opentenant.DefaultProjectID
+		}
+	}
+	aOrg := a.OrganizationID
+	if aOrg == "" {
+		aOrg = opentenant.DefaultOrganizationID
+	}
+	aProj := a.ProjectID
+	if aProj == "" {
+		aProj = opentenant.DefaultProjectID
+	}
+	if ctx.OrgScoped() && aOrg != org {
+		return false
+	}
+	if ctx.ProjectScoped() && aProj != proj {
+		return false
+	}
+	return true
+}
+
 // Count returns registered agent count.
 func (r *Registry) Count() int {
 	r.mu.RLock()
@@ -293,9 +365,11 @@ func (h *Handler) ServeList(w http.ResponseWriter, r *http.Request) {
 		openhttp.WriteError(w, http.StatusMethodNotAllowed, "method_not_allowed", "GET required")
 		return
 	}
+	ctx := opentenant.FromRequest(r)
+	agents := h.Reg.ListScoped(ctx)
 	writeJSON(w, http.StatusOK, map[string]any{
-		"agents": h.Reg.List(),
-		"count":  h.Reg.Count(),
+		"agents": agents,
+		"count":  len(agents),
 	})
 }
 
@@ -312,7 +386,7 @@ func (h *Handler) ServeGet(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	agent, ok := h.Reg.Get(id)
-	if !ok {
+	if !ok || !agentInScope(agent, opentenant.FromRequest(r)) {
 		openhttp.WriteError(w, http.StatusNotFound, "not_found", "agent not found")
 		return
 	}
