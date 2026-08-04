@@ -95,6 +95,11 @@ func (h *Handler) ServeQueryRoot(w http.ResponseWriter, r *http.Request) {
 			"db_statements",
 			"db_fingerprint_match",
 			"db_unused_indexes",
+			"releases",
+			"diagnostics_suspect_commits",
+			"diagnostics_heap",
+			"diagnostics_threads",
+			"diagnostics_locks",
 		},
 		"source": "clickhouse",
 		"database": func() string {
