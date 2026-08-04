@@ -14,13 +14,14 @@ func TestEscapeAndTenantWhere(t *testing.T) {
 	r.Header.Set("X-Organization-ID", "nas")
 	r.Header.Set("X-Project-ID", "infra")
 	got := tenantWhere(r, "")
-	if got != "1=1 AND organization_id = 'nas' AND project_id = 'infra'" {
-		t.Fatalf("%q", got)
+	want := "(coalesce(nullif(organization_id, ''), 'default-org') = 'nas' AND coalesce(nullif(project_id, ''), 'default-project') = 'infra')"
+	if got != want {
+		t.Fatalf("got %q want %q", got, want)
 	}
 	r2 := httptest.NewRequest("GET", "/api/services", nil)
 	r2.Header.Set("X-Organization-ID", "all")
 	if tenantWhere(r2, "") != "1=1" {
-		t.Fatalf("all org should be unscoped")
+		t.Fatalf("all org should be unscoped, got %q", tenantWhere(r2, ""))
 	}
 }
 
