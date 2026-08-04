@@ -21,13 +21,15 @@ func (h *Handler) ServeDBInstances(w http.ResponseWriter, r *http.Request) {
 	}
 
 	scope := tenantAnd(r, "")
+	// Alias must not reuse the column name "scraped_at" — ClickHouse 24.x
+	// rewrites ORDER BY aliases into nested aggregates (ILLEGAL_AGGREGATION).
 	rows, err := h.Writer.Query(fmt.Sprintf(`
 		SELECT instance_id, engine, argMax(metrics_json, scraped_at) AS metrics_json,
-		       max(scraped_at) AS scraped_at
+		       max(scraped_at) AS last_scraped_at
 		FROM opa.db_instance_snapshots
 		WHERE 1=1%s
 		GROUP BY instance_id, engine
-		ORDER BY max(scraped_at) DESC
+		ORDER BY last_scraped_at DESC
 		LIMIT 100`, scope))
 	if err != nil {
 		writeJSON(w, map[string]any{"instances": []any{}, "source": "opa-hub", "error": err.Error()})
@@ -39,7 +41,7 @@ func (h *Handler) ServeDBInstances(w http.ResponseWriter, r *http.Request) {
 		item := map[string]any{
 			"id":         asString(row, "instance_id"),
 			"engine":     asString(row, "engine"),
-			"scraped_at": asString(row, "scraped_at"),
+			"scraped_at": asString(row, "last_scraped_at"),
 		}
 		raw := asString(row, "metrics_json")
 		var metrics map[string]any
