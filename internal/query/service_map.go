@@ -101,6 +101,9 @@ func (h *Handler) ServeServiceMap(w http.ResponseWriter, r *http.Request) {
 		})
 	}
 
+	externalDeps := map[string]bool{}
+	h.appendExternalDependencyEdges(r, timeFrom, timeTo, tenantRoot, calcHealth, services, externalDeps, &edges)
+
 	svcSQL := fmt.Sprintf(`SELECT DISTINCT service
 		FROM opa.spans_min
 		WHERE %s AND start_ts >= %s AND start_ts <= %s`, tenantRoot, timeFrom, timeTo)
@@ -184,6 +187,8 @@ func (h *Handler) ServeServiceMap(w http.ResponseWriter, r *http.Request) {
 		}
 		nodes = append(nodes, node)
 	}
+
+	nodes = appendExternalDepNodes(nodes, edges, externalDeps, calcHealth)
 
 	writeJSON(w, map[string]any{
 		"nodes":  nodes,
