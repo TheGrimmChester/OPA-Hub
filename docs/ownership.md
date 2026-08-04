@@ -64,7 +64,27 @@ These pages call hub URLs today but **no backend exists** on hub or edge (NAS `1
 
 **Edge-only, dashboard not wired:** `GET /api/filter-suggestions/{keys,values}` — agent returns **200** on NAS edge `:18081`; hub correctly returns **404**. Stay on edge until a dashboard surface calls it; then proxy or re-implement on hub against the same ClickHouse queries.
 
-**Trace Explorer facets (hub-owned, not deferred):** `GET /api/explore/facets` is on **opa-hub** as of [OPA-Hub #20](https://github.com/TheGrimmChester/OPA-Hub/pull/20) / **v0.7.3** (Wave 14 agent query restored against `opa.spans_min` / signal tables). NAS hub `:18080` returns **200** (JWT); edge `:18081` remains **404** by design. Do not list this route as deferred.
+**Trace Explorer facets (hub-owned, not deferred):** `GET /api/explore/facets` is on **opa-hub** as of [OPA-Hub #20](https://github.com/TheGrimmChester/OPA-Hub/pull/20) / **v0.7.3+** (Wave 14 agent query restored against `opa.spans_min` / signal tables; **v0.7.4** adds language/framework/db_system/url_path). NAS hub `:18080` returns **200** (JWT); edge `:18081` remains **404** by design. Do not list this route as deferred.
+
+### NAS facet dimension audit (`opa.spans_min`, 7d window)
+
+Audited on `192.168.100.101` ClickHouse. Gate: only ship chips for columns with real non-empty values.
+
+| Column / facet field | Non-empty rows | Distinct | Ship as chip? |
+|----------------------|----------------|----------|---------------|
+| `service` | ~all | 5 | Yes (existing) |
+| `status` | ~all | 2 | Yes (existing) |
+| `language` | ~all | 2 (`php`, `python`) | **Yes — enriched** |
+| `framework` | ~all | 1 (`symfony`) | **Yes — enriched** |
+| `db_system` | sparse (~172) | 1 (`mysql`) | **Yes — enriched** |
+| `url_path` | ~1k | 20 | **Yes — enriched** |
+| `hostname` / `host` | 0 | 0 | Allowlisted; empty on NAS today |
+| `environment` | 0 | 0 | Allowlisted; empty on NAS today |
+| `release` | 0 | 0 | Allowlisted; empty on NAS today |
+| `route` | 0 | 0 | Allowlisted; empty on NAS today |
+| `container_id` / `pod` / `instance` | 0 | 0 | Not allowlisted (no data) |
+
+Dashboard Trace Explorer should prefer `service` / `language` / `framework` / `status` (and optionally `db_system` / `url_path`) over empty `environment` / `host` until edge ingest fills those identity columns.
 
 ## Hub migration history (batches 2–5)
 

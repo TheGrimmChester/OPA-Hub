@@ -78,7 +78,7 @@ When `OPA_AUTH_REQUIRED=1`, these routes require `Authorization: Bearer <user JW
 | `GET` | `/api/traces` | Paginated trace list (`limit`, `offset`, `service`, `status`, `from`, `to`, `sort`, `order`) |
 | `GET` | `/api/traces/{id}` | Trace spans from `spans_min` |
 | `GET` | `/api/traces/{id}/full` | Trace spans enriched from `spans_full` when available |
-| `GET` | `/api/explore/facets` | Facet value counts for Trace Explorer (`signal`, `field`, `hours`) |
+| `GET` | `/api/explore/facets` | Facet value counts for Trace Explorer (`signal`, `field`, `hours`). Spans fields: `service`, `status`, `host`, `environment`, `release`, `route`, `language`, `framework`, `db_system`, `url_path`, `trace_id` |
 | `GET` | `/api/metrics/names` | Metric discovery from `opa.metric_series` |
 | `GET` | `/api/metrics/labels` | Label names for a metric (`metric=`) |
 | `GET` | `/api/metrics/label-values` | Label values (`metric=`, `label=`) |
