@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.7.0
+
+- Hub owns RUM session-replay reads: `GET /api/rum/replay/{id}`, `GET /api/rum/replay-timeline/{id}` from `opa.rum_replay_chunks`.
+- Mobile crash↔session reads: `GET /api/rum/mobile/sessions` and `GET /api/mobile/crashes` from `opa.mobile_crashes` when present.
+- Edge agent retains `POST /api/rum`, `POST /api/rum/replay`, and `POST /api/mobile/crashes` ingest.
+
 ## 0.6.0
 
 - Hub owns SLO list/CRUD and compliance reads: `/api/slos`, `/api/slos/{id}`, `/api/slos/{id}/compliance` (`opa.slos`, `opa.slo_metrics`). Edge agent continues periodic SLO evaluation into the same metrics table.
