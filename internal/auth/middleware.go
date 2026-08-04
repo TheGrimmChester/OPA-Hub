@@ -15,9 +15,21 @@ const userClaimsKey ctxKey = 1
 
 // Middleware returns an HTTP middleware that enforces user JWT auth when
 // AuthRequired is true. Public auth/health/ingest/agent enroll paths should
-// not use this wrapper.
+// not use this wrapper. GET/HEAD need viewer; mutating methods need editor.
 func (h *Handler) Middleware(next http.HandlerFunc) http.HandlerFunc {
-	return h.Require("viewer", next)
+	return h.RequireReadWrite(next)
+}
+
+// RequireReadWrite is viewer for safe methods and editor for mutations.
+func (h *Handler) RequireReadWrite(next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		role := "viewer"
+		switch r.Method {
+		case http.MethodPost, http.MethodPut, http.MethodPatch, http.MethodDelete:
+			role = "editor"
+		}
+		h.Require(role, next)(w, r)
+	}
 }
 
 // Require enforces a user JWT with at least requiredRole (viewer < editor < admin)
@@ -35,6 +47,10 @@ func (h *Handler) Require(requiredRole string, next http.HandlerFunc) http.Handl
 		}
 		if requiredRole != "" && !openauth.HasPermission(claims.Role, requiredRole) {
 			openhttp.WriteError(w, http.StatusForbidden, "forbidden", "insufficient role")
+			return
+		}
+		if err := openauth.ApplyUserTenantHeaders(r, claims); err != nil {
+			openhttp.WriteError(w, http.StatusForbidden, "forbidden", "tenant mismatch")
 			return
 		}
 		ctx := context.WithValue(r.Context(), userClaimsKey, claims)
@@ -64,6 +80,9 @@ func (h *Handler) RequireUserOrService(requiredRole, requiredServiceScope string
 						return
 					}
 				}
+				if org := strings.TrimSpace(sc.OrgID); org != "" {
+					r.Header.Set("X-Organization-ID", org)
+				}
 				next(w, r)
 				return
 			}
@@ -75,6 +94,10 @@ func (h *Handler) RequireUserOrService(requiredRole, requiredServiceScope string
 		}
 		if requiredRole != "" && !openauth.HasPermission(claims.Role, requiredRole) {
 			openhttp.WriteError(w, http.StatusForbidden, "forbidden", "insufficient role")
+			return
+		}
+		if err := openauth.ApplyUserTenantHeaders(r, claims); err != nil {
+			openhttp.WriteError(w, http.StatusForbidden, "forbidden", "tenant mismatch")
 			return
 		}
 		ctx := context.WithValue(r.Context(), userClaimsKey, claims)

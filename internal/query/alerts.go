@@ -8,6 +8,7 @@ import (
 	"time"
 
 	openhttp "github.com/TheGrimmChester/open-http-go"
+	opentenant "github.com/TheGrimmChester/open-tenant-go"
 )
 
 // Alert is a persisted alert rule (matches OPA-Agent / dashboard shape).
@@ -155,7 +156,10 @@ func (h *Handler) ServeAlertsSubpath(w http.ResponseWriter, r *http.Request) {
 		}
 		writeJSON(w, alert)
 	case http.MethodDelete:
-		if err := h.Writer.Exec(fmt.Sprintf("ALTER TABLE opa.alerts DELETE WHERE id = '%s'", escapeSQL(alertID))); err != nil {
+		owned := opentenant.FromRequest(r).OwnedRowPredicate("")
+		if err := h.Writer.Exec(fmt.Sprintf(
+			"ALTER TABLE opa.alerts DELETE WHERE id = '%s' AND %s",
+			escapeSQL(alertID), owned)); err != nil {
 			openhttp.WriteError(w, http.StatusInternalServerError, "query_error", err.Error())
 			return
 		}
