@@ -17,7 +17,7 @@ import (
 	"github.com/TheGrimmChester/opa-hub/internal/store"
 )
 
-const version = "0.7.1"
+const version = "0.7.2"
 
 // Server is the opa-hub HTTP control plane.
 type Server struct {
@@ -61,10 +61,11 @@ func (s *Server) routes() {
 	authH := auth.New(s.cfg.JWTSecret, s.cfg.AuthRequired, s.cfg.OPAPublicURL, s.cfg.ServiceJWTSecret)
 	s.authH = authH
 	queryH := &query.Handler{
-		Reg:       s.reg,
-		Writer:    s.writer,
-		StartedAt: s.started,
-		Version:   version,
+		Reg:                 s.reg,
+		Writer:              s.writer,
+		StartedAt:           s.started,
+		Version:             version,
+		EnrollTokenRequired: s.cfg.EnrollToken != "",
 	}
 
 	s.mux.HandleFunc("/api/health", s.handleHealth)
@@ -154,6 +155,16 @@ func (s *Server) routes() {
 
 	// Cohort compare (Compare Traces page)
 	s.mux.HandleFunc("/api/transactions/compare", authH.Middleware(queryH.ServeTransactionsCompare))
+
+	// Platform ops (System page) + DB monitoring reads (Databases page)
+	s.mux.HandleFunc("/api/version", authH.Middleware(queryH.ServeVersion))
+	s.mux.HandleFunc("/api/topology", authH.Middleware(queryH.ServeTopology))
+	s.mux.HandleFunc("/api/ops/status", authH.Middleware(queryH.ServeOpsStatus))
+	s.mux.HandleFunc("/api/audit", authH.Require("admin", queryH.ServeAudit))
+	s.mux.HandleFunc("/api/db/instances", authH.Middleware(queryH.ServeDBInstances))
+	s.mux.HandleFunc("/api/db/statements", authH.Middleware(queryH.ServeDBStatements))
+	s.mux.HandleFunc("/api/db/fingerprint-match", authH.Middleware(queryH.ServeDBFingerprintMatch))
+	s.mux.HandleFunc("/api/db/unused-indexes", authH.Middleware(queryH.ServeDBUnusedIndexes))
 
 	s.registerTenancyAndPeerRoutes()
 }
