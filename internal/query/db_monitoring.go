@@ -27,7 +27,7 @@ func (h *Handler) ServeDBInstances(w http.ResponseWriter, r *http.Request) {
 		FROM opa.db_instance_snapshots
 		WHERE 1=1%s
 		GROUP BY instance_id, engine
-		ORDER BY scraped_at DESC
+		ORDER BY max(scraped_at) DESC
 		LIMIT 100`, scope))
 	if err != nil {
 		writeJSON(w, map[string]any{"instances": []any{}, "source": "opa-hub", "error": err.Error()})
