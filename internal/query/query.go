@@ -46,6 +46,7 @@ func (h *Handler) ServeQueryRoot(w http.ResponseWriter, r *http.Request) {
 			"services_http_calls",
 			"traces",
 			"trace_detail",
+			"explore_facets",
 			"admin",
 			"metrics_names",
 			"metrics_labels",

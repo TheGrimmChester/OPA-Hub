@@ -17,7 +17,7 @@ import (
 	"github.com/TheGrimmChester/opa-hub/internal/store"
 )
 
-const version = "0.7.2"
+const version = "0.7.3"
 
 // Server is the opa-hub HTTP control plane.
 type Server struct {
@@ -90,6 +90,7 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("/api/services", authH.Middleware(queryH.ServeServices))
 	s.mux.HandleFunc("/api/traces/", authH.Middleware(queryH.ServeTracesSubpath))
 	s.mux.HandleFunc("/api/traces", authH.Middleware(queryH.ServeTraces))
+	s.mux.HandleFunc("/api/explore/facets", authH.Middleware(queryH.ServeExploreFacets))
 
 	// Span-derived observability reads (SQL / Redis / HTTP / dumps / stats / commands / KT)
 	s.mux.HandleFunc("/api/sql/queries/", authH.Middleware(queryH.ServeSQLQueriesSubpath))
