@@ -2,6 +2,7 @@ package query
 
 import (
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 )
@@ -54,5 +55,17 @@ func TestSafeIntervalAndMatchers(t *testing.T) {
 	d, err := parseRangeDuration("14d")
 	if err != nil || d != 14*24*time.Hour {
 		t.Fatalf("%v %v", d, err)
+	}
+}
+
+func TestSafeSortDirAndFormatBytes(t *testing.T) {
+	if safeSortDir("asc") != "ASC" || safeSortDir("DESC") != "DESC" || safeSortDir("") != "DESC" {
+		t.Fatalf("sort dir")
+	}
+	if formatBytes(500) != "500 B" || !strings.Contains(formatBytes(2048), "KB") {
+		t.Fatalf("formatBytes")
+	}
+	if newID() == "" {
+		t.Fatal("newID")
 	}
 }

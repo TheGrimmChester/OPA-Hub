@@ -111,6 +111,16 @@ When `OPA_AUTH_REQUIRED=1`, these routes require `Authorization: Bearer <user JW
 | `GET` | `/api/slos/{id}/compliance` | Recent compliance windows (`opa.slo_metrics`) |
 | `GET` | `/api/anomalies` | Anomaly detections list (`opa.anomalies`) |
 | `GET` | `/api/logs` | Logs explorer (facets, histogram, pagination) |
+| `GET` | `/api/sql/queries` | SQL fingerprint aggregates (`opa.spans_min`) |
+| `GET` | `/api/sql/queries/{fingerprint}` | SQL fingerprint detail + trends |
+| `GET` | `/api/redis/operations` | Redis command/key aggregates (`opa.spans_full.redis`) |
+| `GET` | `/api/http-calls` | Outbound HTTP aggregates (`opa.spans_full.http`) |
+| `GET` | `/api/services/{name}/stats` | Service KPIs + top endpoints |
+| `GET` | `/api/services/{name}/http-calls` | Per-service outbound HTTP aggregates |
+| `GET` | `/api/dumps` | Flattened variable dumps from `opa.spans_full` |
+| `GET` | `/api/stats` | Trace / storage / registry summary for Statistics page |
+| `GET` | `/api/commands` | CLI/worker/cron entry spans (`is_cli=1`) |
+| `GET`/`POST` | `/api/key-transactions` | Named key-transaction list/create |
 | `GET`/`POST` | `/api/synthetics` | List/create synthetic checks (`opa.synthetic_checks`) |
 | `GET`/`PUT`/`DELETE` | `/api/synthetics/{id}` | Get/update/delete a check |
 | `GET` | `/api/synthetics/{id}/results` | Recent probe results (`opa.synthetic_results`) |

@@ -16,6 +16,7 @@ Open Profiling Agent uses hub-and-spoke topology with a **shared central ClickHo
 | Anomalies list | **Hub** | `opa.anomalies` |
 | Anomaly detector / on-demand analyze | **Edge agent** | writes `opa.anomalies` |
 | Logs explorer | **Hub** | `opa.logs` (optional join to `opa.spans_min` for tenancy) |
+| SQL / Redis / HTTP / dumps / commands / stats / key-transactions | **Hub** | `opa.spans_min`, `opa.spans_full`, `opa.key_transactions`, `system.parts` |
 | Synthetics list / CRUD / results read | **Hub** | `opa.synthetic_checks`, `opa.synthetic_results` |
 | Synthetics HTTP probes | **Edge agent** | reads `opa.synthetic_checks`; writes `opa.synthetic_results` |
 | RUM browser ingest (`POST /api/rum`, `POST /api/rum/replay`) | **Edge agent** | `opa.rum_events`, `opa.rum_replay_chunks` |
