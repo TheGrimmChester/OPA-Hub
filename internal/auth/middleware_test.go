@@ -102,6 +102,72 @@ func TestMiddlewareTenantClaimMismatch(t *testing.T) {
 	}
 }
 
+func TestMiddlewareProjectACLDeny(t *testing.T) {
+	h := New("test-jwt-secret-at-least-32-bytes-ok", true, "", "")
+	tok, err := openauth.MintUserJWTWithACL(h.JWTSecret, "dev", "viewer", h.Issuer, "default-org", []string{"allowed-only"}, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	handler := h.Middleware(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
+
+	deny := httptest.NewRequest(http.MethodGet, "/api/key-transactions", nil)
+	deny.Header.Set("Authorization", "Bearer "+tok)
+	deny.Header.Set("X-Organization-ID", "default-org")
+	deny.Header.Set("X-Project-ID", "other-project")
+	rec := httptest.NewRecorder()
+	handler(rec, deny)
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("ACL deny: got %d want 403", rec.Code)
+	}
+
+	allow := httptest.NewRequest(http.MethodGet, "/api/key-transactions", nil)
+	allow.Header.Set("Authorization", "Bearer "+tok)
+	allow.Header.Set("X-Organization-ID", "default-org")
+	allow.Header.Set("X-Project-ID", "allowed-only")
+	rec2 := httptest.NewRecorder()
+	handler(rec2, allow)
+	if rec2.Code != http.StatusOK {
+		t.Fatalf("ACL allow: got %d want 200", rec2.Code)
+	}
+
+	// Lab admin retains full default-org access.
+	adminTok, _, err := h.mintToken("admin", "admin")
+	if err != nil {
+		t.Fatal(err)
+	}
+	adminReq := httptest.NewRequest(http.MethodGet, "/api/tenancy/organizations", nil)
+	adminReq.Header.Set("Authorization", "Bearer "+adminTok)
+	adminReq.Header.Set("X-Organization-ID", "default-org")
+	adminReq.Header.Set("X-Project-ID", "default-project")
+	rec3 := httptest.NewRecorder()
+	handler(rec3, adminReq)
+	if rec3.Code != http.StatusOK {
+		t.Fatalf("admin default-org: got %d want 200", rec3.Code)
+	}
+}
+
+func TestRequireUserOrServiceProjectACL(t *testing.T) {
+	h := New("test-jwt-secret-at-least-32-bytes-ok", true, "", "service-secret-distinct-32-bytes!!")
+	tok, err := openauth.MintUserJWTWithACL(h.JWTSecret, "dev", "viewer", h.Issuer, "default-org", []string{"alpha"}, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	handler := h.RequireUserOrService("viewer", "health:read", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
+	bad := httptest.NewRequest(http.MethodGet, "/api/tenancy/organizations", nil)
+	bad.Header.Set("Authorization", "Bearer "+tok)
+	bad.Header.Set("X-Organization-ID", "default-org")
+	bad.Header.Set("X-Project-ID", "beta")
+	rec := httptest.NewRecorder()
+	handler(rec, bad)
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("tenancy ACL deny: got %d want 403", rec.Code)
+	}
+}
+
 func TestMiddlewareAllowsWhenAuthNotRequired(t *testing.T) {
 	h := New("test-jwt-secret-at-least-32-bytes-ok", false, "", "")
 	called := false
