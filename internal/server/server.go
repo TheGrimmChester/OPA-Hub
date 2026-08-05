@@ -13,6 +13,7 @@ import (
 	"github.com/TheGrimmChester/opa-hub/internal/auth"
 	"github.com/TheGrimmChester/opa-hub/internal/config"
 	"github.com/TheGrimmChester/opa-hub/internal/ingest"
+	"github.com/TheGrimmChester/opa-hub/internal/oamdir"
 	"github.com/TheGrimmChester/opa-hub/internal/query"
 	"github.com/TheGrimmChester/opa-hub/internal/registry"
 	"github.com/TheGrimmChester/opa-hub/internal/store"
@@ -29,6 +30,9 @@ type Server struct {
 	writer  *store.Writer
 	started time.Time
 	authH   *auth.Handler
+	// oamDir reads the authoritative organization directory from OAM. Nil-safe:
+	// when PEER_OAM_URL is unset the hub keeps answering from its agent registry.
+	oamDir *oamdir.Client
 }
 
 // New builds a fully wired hub server.
@@ -55,6 +59,13 @@ func New(cfg config.Config) *Server {
 		reg:     reg,
 		writer:  writer,
 		started: time.Now().UTC(),
+		oamDir:  oamdir.New(),
+	}
+	if oamdir.Configured() {
+		log.Info("oam directory", map[string]any{
+			"peer_oam_url": oamdir.PeerURL(),
+			"note":         "organizations come from the OAM directory; the agent registry is the fallback",
+		})
 	}
 	s.routes()
 	return s
