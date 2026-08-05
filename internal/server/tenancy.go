@@ -78,7 +78,11 @@ func (s *Server) organizations() ([]registry.OrganizationSummary, string) {
 			}
 			for _, o := range orgs {
 				out = append(out, registry.OrganizationSummary{
-					ID:         o.ID,
+					ID: o.ID,
+					// Carry OAM's label through. Dropping it left every peer
+					// picker rendering raw ids, because the id is the only
+					// fallback a peer has.
+					Name:       o.Name,
 					AgentCount: counts[o.ID],
 					Source:     "oam",
 				})

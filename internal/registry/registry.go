@@ -241,7 +241,12 @@ func (r *Registry) Count() int {
 
 // OrganizationSummary is a tenancy org known to the hub (from agent labels).
 type OrganizationSummary struct {
-	ID         string `json:"id"`
+	ID string `json:"id"`
+	// Name is the human-readable label, populated only from the OAM directory —
+	// the agent registry knows organization ids and nothing else. omitempty keeps
+	// the registry-derived payload byte-identical to before this field existed;
+	// peers fall back to the id when it is absent (OSA's picker does exactly that).
+	Name       string `json:"name,omitempty"`
 	AgentCount int    `json:"agent_count"`
 	Source     string `json:"source"`
 }
