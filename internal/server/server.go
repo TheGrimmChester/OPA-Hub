@@ -74,7 +74,7 @@ func New(cfg config.Config) *Server {
 func (s *Server) routes() {
 	regH := &registry.Handler{Reg: s.reg, EnrollToken: s.cfg.EnrollToken}
 	ingH := &ingest.Handler{Reg: s.reg, Writer: s.writer, EnrollToken: s.cfg.EnrollToken}
-	authH := auth.New(s.cfg.JWTSecret, s.cfg.AuthRequired, s.cfg.OPAPublicURL, s.cfg.ServiceJWTSecret)
+	authH := auth.New(s.cfg.JWTSecret, s.cfg.AuthRequired, s.cfg.OPAPublicURL, s.cfg.ServiceJWTSecret, s.cfg.AuthMode)
 	s.authH = authH
 	queryH := &query.Handler{
 		Reg:                 s.reg,

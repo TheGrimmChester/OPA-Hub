@@ -12,27 +12,35 @@ import (
 
 // Handler issues user JWTs for OPA-Dashboard when co-deployed, and for
 // standalone OPA installs. Tokens are standard HS256 JWTs (Open-Auth-Go).
-// Credential store and minting go through openauth.LocalIssuer.
+// When PEER_OAM_URL is set in co-deployed mode, login proxies to OAM (iss=oam-api).
 type Handler struct {
 	JWTSecret     []byte
 	ServiceSecret []byte
 	AuthRequired  bool
 	PublicURL     string
 	Issuer        string
+	AuthMode      string
 	local         *openauth.LocalIssuer
 }
 
 // New constructs an auth handler. When JWTSecret is empty, login still works
 // for lab installs but issued tokens use a process-local ephemeral secret.
 // serviceSecret is OPEN_SERVICE_JWT_SECRET for peer UserOrService routes.
-func New(jwtSecret string, authRequired bool, publicURL, serviceSecret string) *Handler {
+// authMode is AUTH_MODE; when PEER_OAM_URL is set and mode is not standalone,
+// login/register proxy to OAM instead of LocalIssuer.
+func New(jwtSecret string, authRequired bool, publicURL, serviceSecret, authMode string) *Handler {
 	local := openauth.NewLocalIssuer([]byte(jwtSecret), "opa-hub", "admin", "admin")
+	issuer := "opa-hub"
+	if oamAuthConfigured(authMode) {
+		issuer = "oam-api"
+	}
 	return &Handler{
 		JWTSecret:     local.Secret,
 		ServiceSecret: []byte(strings.TrimSpace(serviceSecret)),
 		AuthRequired:  authRequired,
 		PublicURL:     publicURL,
-		Issuer:        "opa-hub",
+		Issuer:        issuer,
+		AuthMode:      authMode,
 		local:         local,
 	}
 }
@@ -47,16 +55,26 @@ func (h *Handler) mintToken(username, role string) (string, time.Time, error) {
 }
 
 func (h *Handler) parseToken(token string) (*openauth.UserClaims, error) {
-	if h.local != nil {
-		return h.local.Parse(token)
+	claims, err := openauth.ParseUserJWT(token, h.JWTSecret)
+	if err != nil {
+		return nil, err
 	}
-	return openauth.ParseUserJWT(token, h.JWTSecret)
+	if oamAuthConfigured(h.AuthMode) {
+		if iss := strings.TrimSpace(claims.Issuer); iss != "" && iss != "oam-api" {
+			return nil, openauth.ErrInvalidToken
+		}
+	}
+	return claims, nil
 }
 
 // ServeLogin handles POST /api/auth/login.
 func (h *Handler) ServeLogin(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		openhttp.WriteError(w, http.StatusMethodNotAllowed, "method_not_allowed", "POST required")
+		return
+	}
+	if oamAuthConfigured(h.AuthMode) {
+		proxyOAMAuth(w, r, "/api/auth/login")
 		return
 	}
 	var creds struct {
@@ -94,9 +112,15 @@ func (h *Handler) ServeLogin(w http.ResponseWriter, r *http.Request) {
 // Self-registration is capped to viewer. Elevating role requires an admin JWT.
 // When AuthRequired is true, registration itself requires an admin JWT.
 // Optional org_id / project_ids bind the new user to a project allowlist.
+// Disabled when OAM is the identity home (use OAM admin user APIs).
 func (h *Handler) ServeRegister(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		openhttp.WriteError(w, http.StatusMethodNotAllowed, "method_not_allowed", "POST required")
+		return
+	}
+	if oamAuthConfigured(h.AuthMode) {
+		openhttp.WriteError(w, http.StatusServiceUnavailable, "oam_identity_home",
+			"user registration is managed by OAM — use OAM /api/users/set")
 		return
 	}
 	caller, callerOK := h.claimsFromRequest(r)
@@ -186,6 +210,7 @@ func (h *Handler) ServeStatus(w http.ResponseWriter, r *http.Request) {
 		"issuer":        h.Issuer,
 		"public_url":    h.PublicURL,
 		"mode":          "hub",
+		"oam_login":     oamAuthConfigured(h.AuthMode),
 	}
 	if authenticated {
 		user := map[string]any{"username": claims.Username, "role": claims.Role}

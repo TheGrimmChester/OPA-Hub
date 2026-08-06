@@ -9,7 +9,7 @@ import (
 )
 
 func TestMiddlewareRequiresViewerWhenAuthRequired(t *testing.T) {
-	h := New("test-jwt-secret-at-least-32-bytes-ok", true, "", "service-secret-distinct-32-bytes!!")
+	h := New("test-jwt-secret-at-least-32-bytes-ok", true, "", "service-secret-distinct-32-bytes!!", "")
 	called := false
 	handler := h.Middleware(func(w http.ResponseWriter, r *http.Request) {
 		called = true
@@ -43,7 +43,7 @@ func TestMiddlewareRequiresViewerWhenAuthRequired(t *testing.T) {
 }
 
 func TestMiddlewareMutationsRequireEditor(t *testing.T) {
-	h := New("test-jwt-secret-at-least-32-bytes-ok", true, "", "")
+	h := New("test-jwt-secret-at-least-32-bytes-ok", true, "", "", "")
 	handler := h.Middleware(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusNoContent)
 	})
@@ -73,7 +73,7 @@ func TestMiddlewareMutationsRequireEditor(t *testing.T) {
 }
 
 func TestMiddlewareTenantClaimMismatch(t *testing.T) {
-	h := New("test-jwt-secret-at-least-32-bytes-ok", true, "", "")
+	h := New("test-jwt-secret-at-least-32-bytes-ok", true, "", "", "")
 	tok, err := openauth.MintUserJWTWithTenant(h.JWTSecret, "bound", "viewer", h.Issuer, "acme", "prod", 0)
 	if err != nil {
 		t.Fatal(err)
@@ -103,7 +103,7 @@ func TestMiddlewareTenantClaimMismatch(t *testing.T) {
 }
 
 func TestMiddlewareProjectACLDeny(t *testing.T) {
-	h := New("test-jwt-secret-at-least-32-bytes-ok", true, "", "")
+	h := New("test-jwt-secret-at-least-32-bytes-ok", true, "", "", "")
 	tok, err := openauth.MintUserJWTWithACL(h.JWTSecret, "dev", "viewer", h.Issuer, "default-org", []string{"allowed-only"}, 0)
 	if err != nil {
 		t.Fatal(err)
@@ -149,7 +149,7 @@ func TestMiddlewareProjectACLDeny(t *testing.T) {
 }
 
 func TestRequireUserOrServiceProjectACL(t *testing.T) {
-	h := New("test-jwt-secret-at-least-32-bytes-ok", true, "", "service-secret-distinct-32-bytes!!")
+	h := New("test-jwt-secret-at-least-32-bytes-ok", true, "", "service-secret-distinct-32-bytes!!", "")
 	tok, err := openauth.MintUserJWTWithACL(h.JWTSecret, "dev", "viewer", h.Issuer, "default-org", []string{"alpha"}, 0)
 	if err != nil {
 		t.Fatal(err)
@@ -169,7 +169,7 @@ func TestRequireUserOrServiceProjectACL(t *testing.T) {
 }
 
 func TestMiddlewareAllowsWhenAuthNotRequired(t *testing.T) {
-	h := New("test-jwt-secret-at-least-32-bytes-ok", false, "", "")
+	h := New("test-jwt-secret-at-least-32-bytes-ok", false, "", "", "")
 	called := false
 	handler := h.Middleware(func(w http.ResponseWriter, r *http.Request) {
 		called = true
