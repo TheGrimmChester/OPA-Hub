@@ -15,6 +15,9 @@
 | `OPA_HUB_ENROLL_TOKEN` | `` | Shared secret edge agents present on register/push (`X-OPA-Enroll-Token` or `Authorization: Bearer …`). Empty disables enroll auth (lab only). |
 | `OPA_HUB_AGENT_STALE_AFTER` | `5m` | Duration after which an agent is marked `stale` without heartbeat/push |
 | `CORS_ORIGIN` | `` | Optional `Access-Control-Allow-Origin` value for dashboard origins |
+| `REDIS_URL` | empty | Dedicated `redis-opa` for encrypted OAM directory stale cache (`internal/oamdir`) |
+| `OPA_SEC_KEY_PREFIX` | `opa:sec:` | Redis key prefix for hub security cache |
+| `PEER_OAM_URL` | empty | When set, org picker reads durable OAM directory (L2 Redis + 30s in-memory TTL); project switcher uses `GET /api/oam/projects?product=opa` (proxied to OAM, `id`→`project_id` alias) |
 
 ## Edge agent pairing
 

@@ -21,7 +21,7 @@ The hub does **not** store GitHub App private keys or PATs. Co-deployed stacks s
 |----------|---------|
 | `CLICKHOUSE_DB` | Database name (default `opa`) |
 
-Hub-issued user JWTs are validated by peer products when they share `JWT_SECRET` in co-deployed mode.
+Hub validates user JWTs with the shared `JWT_SECRET`. In co-deployed family stacks with `PEER_OAM_URL`, **OAM** issues those tokens (`iss=oam-api`) and the hub proxies login; peers do not treat hub as a second identity SoT.
 
 ## Edge → hub
 

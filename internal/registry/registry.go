@@ -252,7 +252,8 @@ type OrganizationSummary struct {
 }
 
 // Organizations returns unique organization_id values from registered agents.
-// Always includes default-org so OPM/OSA/ORA have a stable picker seed.
+// Includes default-org only when an agent actually enrolled under it (empty
+// agent org is remapped for counting continuity — never force-seed the picker).
 func (r *Registry) Organizations() []OrganizationSummary {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
@@ -263,9 +264,6 @@ func (r *Registry) Organizations() []OrganizationSummary {
 			org = "default-org"
 		}
 		counts[org]++
-	}
-	if _, ok := counts["default-org"]; !ok {
-		counts["default-org"] = 0
 	}
 	ids := make([]string, 0, len(counts))
 	for id := range counts {

@@ -171,8 +171,9 @@ RUM **ingest** (`POST /api/rum`, `POST /api/rum/replay`) and mobile crash **inge
 
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|
-| `GET` | `/api/tenancy/organizations` | User JWT (viewer+) or service JWT (`health:read`) when `OPA_AUTH_REQUIRED` | Organizations known to the hub (from agent registry; always includes `default-org`) |
-| `GET` | `/api/github/status` | User JWT (viewer+) or service JWT (`health:read`) when `OPA_AUTH_REQUIRED` | Declares that GitHub App/PAT credentials live in **ORA** (`credentials_home: ora`) |
+| `GET` | `/api/tenancy/organizations` | User JWT (viewer+) or service JWT (`health:read`) when `OPA_AUTH_REQUIRED` | Organizations known to the hub (from OAM when `PEER_OAM_URL` is set; else agent registry — includes `default-org` only when agents enrolled under it) |
+| `GET` | `/api/oam/projects` | User JWT (viewer+) or service JWT (`orgs:read`) when `OPA_AUTH_REQUIRED` | Proxy OAM directory projects (`?organization_id=`, `?product=opa`); adds `project_id` alongside `id`. Enablement writes stay on OAM. |
+| `GET` | `/api/github/status` | User JWT (viewer+) or service JWT (`health:read`) when `OPA_AUTH_REQUIRED` | Declares that GitHub App/PAT credentials live in **ORA** (`credentials_home: ora`) or **OAM** when `PEER_OAM_URL` is set |
 | `GET` | `/api/peer/health` | Service JWT (`aud=opa-hub`, scope `health:read`) | Peer probe for co-deployed products |
 
 Hub owns identity (user JWTs) and a lightweight org directory. GitHub credentials stay in ORA connectors; OPM calls both peers.

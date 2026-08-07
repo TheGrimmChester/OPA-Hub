@@ -22,6 +22,7 @@ func TestConfiguredFollowsPeerURL(t *testing.T) {
 }
 
 func TestOrganizationsReadsTheDirectory(t *testing.T) {
+	t.Setenv("OPA_SEC_KEY_PREFIX", "test-read:")
 	var gotAuth, gotPath string
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		gotAuth = r.Header.Get("Authorization")
@@ -55,6 +56,7 @@ func TestOrganizationsReadsTheDirectory(t *testing.T) {
 // Without a service secret the client cannot authenticate, and it must say so
 // rather than sending an unauthenticated request that returns 401.
 func TestOrganizationsRequiresAServiceSecret(t *testing.T) {
+	t.Setenv("OPA_SEC_KEY_PREFIX", "test-nosecret:")
 	t.Setenv("PEER_OAM_URL", "http://oam.invalid:8090")
 	t.Setenv("OPEN_SERVICE_JWT_SECRET", "")
 	if _, err := New().Organizations(); err == nil {
@@ -65,6 +67,7 @@ func TestOrganizationsRequiresAServiceSecret(t *testing.T) {
 // A brief OAM outage must not blank out every product's org picker: the client
 // serves its last known directory instead of an error.
 func TestStaleCacheSurvivesAnOutage(t *testing.T) {
+	t.Setenv("OPA_SEC_KEY_PREFIX", "test-stale:")
 	fail := false
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if fail {
@@ -101,6 +104,7 @@ func TestStaleCacheSurvivesAnOutage(t *testing.T) {
 // With no cache and a failing peer there is nothing honest to serve, so the error
 // propagates and the caller falls back to the registry.
 func TestNoCacheAndFailureReturnsError(t *testing.T) {
+	t.Setenv("OPA_SEC_KEY_PREFIX", "test-nocache:")
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusBadGateway)
 	}))

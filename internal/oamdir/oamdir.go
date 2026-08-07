@@ -1,18 +1,7 @@
-// Package oamdir reads the family's authoritative organization directory from
-// OAM (Open Account Manager).
-//
-// The hub used to answer /api/tenancy/organizations from its in-memory agent
-// registry: an organization existed only if an agent had enrolled under it, and
-// every org vanished on a hub restart. OPM and OSA seed their org pickers from
-// that endpoint, so a freshly created organization was invisible until telemetry
-// arrived.
-//
-// With PEER_OAM_URL set the hub reads the durable directory instead. Unset, it
-// keeps the registry behaviour exactly — the same rollback switch every other OAM
-// consumer has.
 package oamdir
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -23,12 +12,16 @@ import (
 	"time"
 
 	openauth "github.com/TheGrimmChester/open-auth-go"
+	opencache "github.com/TheGrimmChester/open-cache-go"
+	opencrypto "github.com/TheGrimmChester/open-crypto-go"
 )
 
 // cacheTTL bounds how stale the hub's view can be. The directory changes when a
 // human creates an organization, so seconds of staleness are fine and a per-request
 // peer call would make the hub chatty and couple its latency to OAM's.
 const cacheTTL = 30 * time.Second
+
+const oamdirCacheKey = "oamdir:orgs"
 
 // Org is one directory entry.
 type Org struct {
@@ -44,12 +37,42 @@ type Client struct {
 	mu       sync.Mutex
 	cached   []Org
 	cachedAt time.Time
+
+	l2 *opencache.Layered
 }
 
-// New builds a Client. It is safe to construct even when OAM is not configured;
-// Configured() reports whether it will do anything.
+var (
+	hubCrypto    *opencrypto.Engine
+	hubCryptoOnce sync.Once
+)
+
+func hubLayeredCache() *opencache.Layered {
+	l1 := 20000
+	prefix := strings.TrimSpace(os.Getenv("OPA_SEC_KEY_PREFIX"))
+	if prefix == "" {
+		prefix = "opa:sec:"
+	}
+	hubCryptoOnce.Do(func() {
+		eng, err := opencrypto.NewEngineFromEnv(nil)
+		if err == nil {
+			hubCrypto = eng
+		}
+	})
+	lc, err := opencache.NewLayered(opencache.Config{
+		RedisURL:  os.Getenv("REDIS_URL"),
+		L1Max:     l1,
+		KeyPrefix: prefix,
+		Crypto:    hubCrypto,
+	})
+	if err != nil {
+		lc, _ = opencache.NewLayered(opencache.Config{L1Max: l1, KeyPrefix: prefix, Crypto: hubCrypto})
+	}
+	return lc
+}
+
+// New builds a Client.
 func New() *Client {
-	return &Client{http: &http.Client{Timeout: 5 * time.Second}}
+	return &Client{http: &http.Client{Timeout: 5 * time.Second}, l2: hubLayeredCache()}
 }
 
 // PeerURL is the configured OAM base URL, or "".
@@ -61,14 +84,12 @@ func PeerURL() string {
 func Configured() bool { return PeerURL() != "" }
 
 // Organizations returns the directory.
-//
-// On any failure it returns the error and the caller falls back to the registry:
-// a hub that cannot reach OAM should still serve the org list it can prove, rather
-// than an empty picker. A stale cache is preferred to an error, because a brief
-// OAM outage should not empty every product's org picker.
 func (c *Client) Organizations() ([]Org, error) {
 	if !Configured() {
 		return nil, fmt.Errorf("PEER_OAM_URL not configured")
+	}
+	if strings.TrimSpace(os.Getenv("OPEN_SERVICE_JWT_SECRET")) == "" {
+		return nil, fmt.Errorf("OPEN_SERVICE_JWT_SECRET not set; cannot authenticate to OAM")
 	}
 	c.mu.Lock()
 	if time.Since(c.cachedAt) < cacheTTL && c.cached != nil {
@@ -79,20 +100,67 @@ func (c *Client) Organizations() ([]Org, error) {
 	stale := append([]Org(nil), c.cached...)
 	c.mu.Unlock()
 
+	if orgs, ok := c.loadRedisStale(); ok {
+		c.mu.Lock()
+		c.cached = orgs
+		c.cachedAt = time.Now()
+		c.mu.Unlock()
+		return orgs, nil
+	}
+
 	orgs, err := c.fetch()
 	if err != nil {
 		if len(stale) > 0 {
-			// Serve the last known directory rather than failing: an OAM blip
-			// must not blank out org pickers across the family.
 			return stale, nil
 		}
 		return nil, err
 	}
+	c.storeRedis(orgs)
 	c.mu.Lock()
 	c.cached = orgs
 	c.cachedAt = time.Now()
 	c.mu.Unlock()
 	return orgs, nil
+}
+
+func (c *Client) loadRedisStale() ([]Org, bool) {
+	if c.l2 == nil {
+		return nil, false
+	}
+	ctx := context.Background()
+	cryptoCtx := opencrypto.CryptoContext{Scope: opencrypto.ScopePublic, LogicalKey: oamdirCacheKey}
+	var raw []byte
+	var ok bool
+	if hubCrypto != nil {
+		raw, ok = c.l2.GetEncrypted(ctx, cryptoCtx, oamdirCacheKey)
+	} else {
+		raw, ok = c.l2.Get(ctx, oamdirCacheKey)
+	}
+	if !ok {
+		return nil, false
+	}
+	var orgs []Org
+	if err := json.Unmarshal(raw, &orgs); err != nil {
+		return nil, false
+	}
+	return orgs, true
+}
+
+func (c *Client) storeRedis(orgs []Org) {
+	if c.l2 == nil {
+		return
+	}
+	raw, err := json.Marshal(orgs)
+	if err != nil {
+		return
+	}
+	ctx := context.Background()
+	cryptoCtx := opencrypto.CryptoContext{Scope: opencrypto.ScopePublic, LogicalKey: oamdirCacheKey}
+	if hubCrypto != nil {
+		_ = c.l2.SetEncrypted(ctx, cryptoCtx, oamdirCacheKey, raw, cacheTTL*10)
+		return
+	}
+	c.l2.SetPlain(ctx, oamdirCacheKey, raw, cacheTTL*10)
 }
 
 func (c *Client) fetch() ([]Org, error) {
