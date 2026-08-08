@@ -184,7 +184,6 @@ func TestMiddlewareAllowsWhenAuthNotRequired(t *testing.T) {
 	}
 }
 
-<<<<<<< Updated upstream
 func TestRequireAdminRoleForAdminSurface(t *testing.T) {
 	h := New("test-jwt-secret-at-least-32-bytes-ok", true, "", "service-secret-distinct-32-bytes!!", "")
 	handler := h.Require("admin", func(w http.ResponseWriter, r *http.Request) {
@@ -222,7 +221,9 @@ func TestRequireAdminRoleForAdminSurface(t *testing.T) {
 	handler(okRec, ok)
 	if okRec.Code != http.StatusOK {
 		t.Fatalf("admin: got %d want 200", okRec.Code)
-=======
+	}
+}
+
 func TestMiddlewareNoJWT(t *testing.T) {
 	h := New("test-jwt-secret-at-least-32-bytes-ok", true, "", "", "")
 	handler := h.Middleware(func(w http.ResponseWriter, r *http.Request) {
@@ -308,7 +309,6 @@ func TestMiddlewareProjectIDAllStripped(t *testing.T) {
 	}
 	if sawProj != "allowed-only" {
 		t.Fatalf("single-allowlist pin: got %q want allowed-only", sawProj)
->>>>>>> Stashed changes
 	}
 }
 
