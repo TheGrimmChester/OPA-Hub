@@ -100,7 +100,7 @@ func (s *Server) routes() {
 
 	// Dashboard query surface — hub owns ClickHouse reads (not edge agents).
 	s.mux.HandleFunc("/api/query", authH.Middleware(queryH.ServeQueryRoot))
-	s.mux.HandleFunc("/api/admin", authH.Middleware(queryH.ServeAdmin))
+	s.mux.HandleFunc("/api/admin", authH.Require("admin", queryH.ServeAdmin))
 	s.mux.HandleFunc("/api/services/metadata", authH.Middleware(queryH.ServeServicesMetadata))
 	s.mux.HandleFunc("/api/services/", authH.Middleware(queryH.ServeServicesSubpath))
 	s.mux.HandleFunc("/api/services", authH.Middleware(queryH.ServeServices))

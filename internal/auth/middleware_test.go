@@ -183,3 +183,43 @@ func TestMiddlewareAllowsWhenAuthNotRequired(t *testing.T) {
 	}
 }
 
+func TestRequireAdminRoleForAdminSurface(t *testing.T) {
+	h := New("test-jwt-secret-at-least-32-bytes-ok", true, "", "service-secret-distinct-32-bytes!!", "")
+	handler := h.Require("admin", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
+
+	noTok := httptest.NewRequest(http.MethodGet, "/api/admin", nil)
+	rec := httptest.NewRecorder()
+	handler(rec, noTok)
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("no JWT: got %d want 401", rec.Code)
+	}
+
+	for _, role := range []string{"viewer", "editor"} {
+		tok, err := openauth.MintUserJWT(h.JWTSecret, role+"-user", role, h.Issuer, 0)
+		if err != nil {
+			t.Fatal(err)
+		}
+		req := httptest.NewRequest(http.MethodGet, "/api/admin", nil)
+		req.Header.Set("Authorization", "Bearer "+tok)
+		rr := httptest.NewRecorder()
+		handler(rr, req)
+		if rr.Code != http.StatusForbidden {
+			t.Fatalf("%s: got %d want 403", role, rr.Code)
+		}
+	}
+
+	adminTok, err := openauth.MintUserJWT(h.JWTSecret, "admin", "admin", h.Issuer, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ok := httptest.NewRequest(http.MethodGet, "/api/admin", nil)
+	ok.Header.Set("Authorization", "Bearer "+adminTok)
+	okRec := httptest.NewRecorder()
+	handler(okRec, ok)
+	if okRec.Code != http.StatusOK {
+		t.Fatalf("admin: got %d want 200", okRec.Code)
+	}
+}
+
