@@ -57,6 +57,9 @@ type registerRequest struct {
 }
 
 // Register creates or refreshes an agent enrollment.
+// Empty org/project on enroll intentionally stamp the lab defaults — agents
+// authenticate with an enroll token (not a user JWT). User-facing list/get
+// paths must not invent default-org from missing X-Organization-ID.
 func (r *Registry) Register(req registerRequest) (*Agent, error) {
 	now := time.Now().UTC()
 	id := strings.TrimSpace(req.AgentID)
@@ -163,20 +166,26 @@ func (r *Registry) List() []Agent {
 
 // ListScoped returns agents matching the request tenant scope.
 // When neither dimension is scoped (lab all-tenants), returns List().
+// Under auth, empty/"all" org yields an empty list — never invent default-org.
+// Non-empty ProjectIDs (X-Project-IDs) filters with project_id IN (...).
 func (r *Registry) ListScoped(ctx opentenant.Context) []Agent {
 	all := r.List()
 	if !ctx.OrgScoped() && !ctx.ProjectScoped() {
 		return all
 	}
 	org, proj := ctx.OrganizationID, ctx.ProjectID
+	projectIDs := ctx.ProjectIDs
 	if opentenant.AuthEnforced() {
 		if org == "" || org == opentenant.All {
-			org = opentenant.DefaultOrganizationID
+			return nil
 		}
-		if proj == "" || proj == opentenant.All {
+		// Multi-select list scope uses ProjectIDs; only collapse empty single
+		// project when the multi header is absent (contract: same as missing).
+		if len(projectIDs) == 0 && (proj == "" || proj == opentenant.All) {
 			proj = opentenant.DefaultProjectID
 		}
 	}
+	allow := projectIDAllowSet(projectIDs)
 	out := make([]Agent, 0, len(all))
 	for _, a := range all {
 		aOrg := a.OrganizationID
@@ -190,7 +199,11 @@ func (r *Registry) ListScoped(ctx opentenant.Context) []Agent {
 		if ctx.OrgScoped() && aOrg != org {
 			continue
 		}
-		if ctx.ProjectScoped() && aProj != proj {
+		if len(allow) > 0 {
+			if _, ok := allow[aProj]; !ok {
+				continue
+			}
+		} else if ctx.ProjectScoped() && aProj != proj {
 			continue
 		}
 		out = append(out, a)
@@ -199,6 +212,7 @@ func (r *Registry) ListScoped(ctx opentenant.Context) []Agent {
 }
 
 // agentInScope reports whether agent matches the request tenant.
+// Under auth, empty/"all" org matches nothing (fail closed).
 func agentInScope(a *Agent, ctx opentenant.Context) bool {
 	if a == nil {
 		return false
@@ -207,11 +221,12 @@ func agentInScope(a *Agent, ctx opentenant.Context) bool {
 		return true
 	}
 	org, proj := ctx.OrganizationID, ctx.ProjectID
+	projectIDs := ctx.ProjectIDs
 	if opentenant.AuthEnforced() {
 		if org == "" || org == opentenant.All {
-			org = opentenant.DefaultOrganizationID
+			return false
 		}
-		if proj == "" || proj == opentenant.All {
+		if len(projectIDs) == 0 && (proj == "" || proj == opentenant.All) {
 			proj = opentenant.DefaultProjectID
 		}
 	}
@@ -226,10 +241,32 @@ func agentInScope(a *Agent, ctx opentenant.Context) bool {
 	if ctx.OrgScoped() && aOrg != org {
 		return false
 	}
+	if allow := projectIDAllowSet(projectIDs); len(allow) > 0 {
+		_, ok := allow[aProj]
+		return ok
+	}
 	if ctx.ProjectScoped() && aProj != proj {
 		return false
 	}
 	return true
+}
+
+func projectIDAllowSet(ids []string) map[string]struct{} {
+	if len(ids) == 0 {
+		return nil
+	}
+	out := make(map[string]struct{}, len(ids))
+	for _, id := range ids {
+		id = strings.TrimSpace(id)
+		if id == "" || strings.EqualFold(id, opentenant.All) {
+			continue
+		}
+		out[id] = struct{}{}
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
 }
 
 // Count returns registered agent count.
@@ -296,13 +333,16 @@ func newAgentID() string {
 
 // Handler exposes registry HTTP routes.
 type Handler struct {
-	Reg         *Registry
-	EnrollToken string
+	Reg          *Registry
+	EnrollToken  string
+	AuthRequired bool // when true, empty EnrollToken fails closed
 }
 
 func (h *Handler) enrollOK(r *http.Request) bool {
 	if h.EnrollToken == "" {
-		return true
+		// Lab/dev may leave OPA_HUB_ENROLL_TOKEN unset. Production posture
+		// (OPA_AUTH_REQUIRED) must not leave enroll/heartbeat open.
+		return !h.AuthRequired
 	}
 	tok := r.Header.Get("X-OPA-Enroll-Token")
 	if tok == "" {

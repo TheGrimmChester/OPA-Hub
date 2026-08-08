@@ -3,6 +3,7 @@ package auth
 import (
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	openauth "github.com/TheGrimmChester/open-auth-go"
@@ -183,6 +184,7 @@ func TestMiddlewareAllowsWhenAuthNotRequired(t *testing.T) {
 	}
 }
 
+<<<<<<< Updated upstream
 func TestRequireAdminRoleForAdminSurface(t *testing.T) {
 	h := New("test-jwt-secret-at-least-32-bytes-ok", true, "", "service-secret-distinct-32-bytes!!", "")
 	handler := h.Require("admin", func(w http.ResponseWriter, r *http.Request) {
@@ -220,6 +222,93 @@ func TestRequireAdminRoleForAdminSurface(t *testing.T) {
 	handler(okRec, ok)
 	if okRec.Code != http.StatusOK {
 		t.Fatalf("admin: got %d want 200", okRec.Code)
+=======
+func TestMiddlewareNoJWT(t *testing.T) {
+	h := New("test-jwt-secret-at-least-32-bytes-ok", true, "", "", "")
+	handler := h.Middleware(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
+	req := httptest.NewRequest(http.MethodGet, "/api/alerts", nil)
+	rec := httptest.NewRecorder()
+	handler(rec, req)
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("no JWT: got %d want 401", rec.Code)
+	}
+}
+
+func TestMiddlewarePersonalRejectsOrgHeader(t *testing.T) {
+	h := New("test-jwt-secret-at-least-32-bytes-ok", true, "", "", "")
+	tok, err := openauth.MintUserJWTWithAccount(
+		h.JWTSecret, "alice", "viewer", h.Issuer,
+		openauth.AccountTypePersonal, "", nil, 0,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	handler := h.Middleware(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
+	req := httptest.NewRequest(http.MethodGet, "/api/alerts", nil)
+	req.Header.Set("Authorization", "Bearer "+tok)
+	req.Header.Set("X-Organization-ID", "acme")
+	rec := httptest.NewRecorder()
+	handler(rec, req)
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("personal + org header: got %d want 403", rec.Code)
+	}
+}
+
+func TestMiddlewareOrgMemberForeignOrg(t *testing.T) {
+	h := New("test-jwt-secret-at-least-32-bytes-ok", true, "", "", "")
+	tok, err := openauth.MintUserJWTWithAccount(
+		h.JWTSecret, "bob", "viewer", h.Issuer,
+		openauth.AccountTypeOrganization, "acme", nil, 0,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	handler := h.Middleware(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
+	req := httptest.NewRequest(http.MethodGet, "/api/alerts", nil)
+	req.Header.Set("Authorization", "Bearer "+tok)
+	req.Header.Set("X-Organization-ID", "other")
+	rec := httptest.NewRecorder()
+	handler(rec, req)
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("org member foreign org: got %d want 403", rec.Code)
+	}
+}
+
+func TestMiddlewareProjectIDAllStripped(t *testing.T) {
+	h := New("test-jwt-secret-at-least-32-bytes-ok", true, "", "", "")
+	tok, err := openauth.MintUserJWTWithACL(
+		h.JWTSecret, "dev", "viewer", h.Issuer,
+		"acme", []string{"allowed-only"}, 0,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var sawProj string
+	handler := h.Middleware(func(w http.ResponseWriter, r *http.Request) {
+		sawProj = r.Header.Get("X-Project-ID")
+		w.WriteHeader(http.StatusOK)
+	})
+	req := httptest.NewRequest(http.MethodGet, "/api/alerts", nil)
+	req.Header.Set("Authorization", "Bearer "+tok)
+	req.Header.Set("X-Organization-ID", "acme")
+	req.Header.Set("X-Project-ID", "all")
+	rec := httptest.NewRecorder()
+	handler(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("X-Project-ID all: got %d want 200 body=%s", rec.Code, rec.Body.String())
+	}
+	if sawProj == "" || strings.EqualFold(sawProj, "all") {
+		t.Fatalf("X-Project-ID all must be stripped/pinned under auth, got %q", sawProj)
+	}
+	if sawProj != "allowed-only" {
+		t.Fatalf("single-allowlist pin: got %q want allowed-only", sawProj)
+>>>>>>> Stashed changes
 	}
 }
 

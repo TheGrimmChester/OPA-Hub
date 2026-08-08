@@ -26,14 +26,17 @@ type PushRequest struct {
 
 // Handler accepts edge push batches and records them via ClickHouse write hooks.
 type Handler struct {
-	Reg         *registry.Registry
-	Writer      *store.Writer
-	EnrollToken string
+	Reg          *registry.Registry
+	Writer       *store.Writer
+	EnrollToken  string
+	AuthRequired bool // when true, empty EnrollToken fails closed
 }
 
 func (h *Handler) enrollOK(r *http.Request) bool {
 	if h.EnrollToken == "" {
-		return true
+		// Lab/dev may leave OPA_HUB_ENROLL_TOKEN unset. Production posture
+		// (OPA_AUTH_REQUIRED) must not leave ingest push open.
+		return !h.AuthRequired
 	}
 	tok := r.Header.Get("X-OPA-Enroll-Token")
 	if tok == "" {
